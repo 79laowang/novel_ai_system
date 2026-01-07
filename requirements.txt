@@ -1,0 +1,41 @@
+# Core ML Framework
+torch>=2.5.0
+torchvision>=0.20.0
+torchaudio>=2.5.0
+
+# vLLM for high-performance inference
+vllm>=0.6.0
+
+# Transformers & Training
+transformers>=4.46.0
+peft>=0.13.0
+accelerate>=1.1.0
+bitsandbytes>=0.44.0
+
+# WebUI
+gradio>=4.44.0
+gradio-calendar-theme>=0.0.3
+
+# Memory & RAG
+chromadb>=0.6.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+sentence-transformers>=3.3.0
+
+# Utilities
+datasets>=3.1.0
+wandb>=0.18.0
+tensorboard>=2.18.0
+tqdm>=4.67.0
+rich>=13.9.0
+pydantic>=2.10.0
+python-dotenv>=1.0.0
+
+# API Server
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic-settings>=2.6.0
+
+# Chinese NLP
+jieba>=0.42.1
+opencc>=1.1.9
