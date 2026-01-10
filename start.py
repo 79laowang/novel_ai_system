@@ -39,7 +39,8 @@ def launch_train(args):
     print("🎯 启动模型微调训练")
     print("=" * 60)
 
-    train_main()
+    resume_from = getattr(args, 'resume', None)
+    train_main(resume_from_checkpoint=resume_from)
 
 
 def prepare_data(args):
@@ -114,6 +115,7 @@ def main():
     train_parser.add_argument("--epochs", type=int, default=None, help="训练轮数")
     train_parser.add_argument("--batch-size", type=int, default=None, help="批次大小")
     train_parser.add_argument("--lr", type=float, default=None, help="学习率")
+    train_parser.add_argument("--resume", type=str, default=None, help="从checkpoint恢复训练")
 
     # 数据准备模式
     prepare_parser = subparsers.add_parser("prepare", help="准备训练数据")

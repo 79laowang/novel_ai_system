@@ -39,16 +39,16 @@ class ModelConfig:
 class TrainingConfig:
     """训练配置"""
     # 数据
-    train_data_path: str = "./data/train"
-    val_data_path: str = "./data/val"
-    max_seq_length: int = 4096
-    preprocessing_num_workers: int = 16
+    train_data_path: str = "data/train/train.jsonl"
+    val_data_path: str = "data/val/val.jsonl"
+    max_seq_length: int = 2048
+    preprocessing_num_workers: int = 1
 
     # 训练参数
     num_train_epochs: int = 3
-    per_device_train_batch_size: int = 2
-    per_device_eval_batch_size: int = 2
-    gradient_accumulation_steps: int = 8
+    per_device_train_batch_size: int = 1
+    per_device_eval_batch_size: int = 1
+    gradient_accumulation_steps: int = 4
     learning_rate: float = 2e-4
     warmup_steps: int = 100
     logging_steps: int = 10
@@ -105,9 +105,9 @@ class WebUIConfig:
     # 生成参数
     max_new_tokens: int = 2048
     temperature: float = 0.8
-    top_p: float = 0.95
+    top_p: float = 0.9
     top_k: int = 50
-    repetition_penalty: float = 1.1
+    repetition_penalty: float = 1.15
 
 @dataclass
 class SystemConfig:

@@ -167,11 +167,11 @@ class NovelTrainer:
 
     def prepare_datasets(self):
         """准备训练和验证数据集"""
+        rprint("[cyan]正在tokenize训练数据...[/cyan]")
         train_dataset = self.load_and_preprocess_data(self.config.training.train_data_path)
         train_dataset = train_dataset.map(
             self.tokenize_function,
             batched=True,
-            num_proc=self.config.training.preprocessing_num_workers,
             remove_columns=train_dataset.column_names,
             desc="Tokenizing training data",
         )
@@ -179,11 +179,11 @@ class NovelTrainer:
         # 如果有验证数据
         val_dataset = None
         if self.config.training.val_data_path and Path(self.config.training.val_data_path).exists():
+            rprint("[cyan]正在tokenize验证数据...[/cyan]")
             val_dataset = self.load_and_preprocess_data(self.config.training.val_data_path)
             val_dataset = val_dataset.map(
                 self.tokenize_function,
                 batched=True,
-                num_proc=self.config.training.preprocessing_num_workers,
                 remove_columns=val_dataset.column_names,
                 desc="Tokenizing validation data",
             )
@@ -206,7 +206,7 @@ class NovelTrainer:
             logging_steps=self.config.training.logging_steps,
             save_steps=self.config.training.save_steps,
             eval_steps=self.config.training.eval_steps if val_dataset else None,
-            evaluation_strategy="steps" if val_dataset else "no",
+            eval_strategy="steps" if val_dataset else "no",
             save_strategy="steps",
             save_total_limit=3,
             bf16=self.config.training.bf16,
@@ -239,7 +239,7 @@ class NovelTrainer:
 
         rprint(f"[green]✓ 训练器配置完成[/green]")
 
-    def train(self):
+    def train(self, resume_from_checkpoint: Optional[str] = None):
         """开始训练"""
         rprint("[bold green]开始训练...[/bold green]")
 
@@ -253,17 +253,25 @@ class NovelTrainer:
         table.add_row("梯度累积", str(self.config.training.gradient_accumulation_steps))
         table.add_row("学习率", str(self.config.training.learning_rate))
         table.add_row("有效批次大小", str(self.config.training.per_device_train_batch_size * self.config.training.gradient_accumulation_steps * torch.cuda.device_count()))
+        if resume_from_checkpoint:
+            table.add_row("恢复检查点", resume_from_checkpoint)
         console.print(table)
 
         # 开始训练
-        self.trainer.train()
+        if resume_from_checkpoint:
+            rprint(f"[yellow]从检查点恢复训练: {resume_from_checkpoint}[/yellow]")
+            self.trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            self.trainer.train()
 
         rprint("[bold green]训练完成！[/bold green]")
 
     def save_model(self, output_dir: Optional[str] = None):
         """保存模型"""
-        save_path = output_dir or self.config.training.output_dir / "final_model"
-        save_path = Path(save_path)
+        if output_dir:
+            save_path = Path(output_dir)
+        else:
+            save_path = Path(self.config.training.output_dir) / "final_model"
         save_path.mkdir(parents=True, exist_ok=True)
 
         rprint(f"[bold cyan]正在保存模型到: {save_path}[/bold cyan]")
@@ -275,8 +283,16 @@ class NovelTrainer:
         rprint(f"[green]✓ 模型已保存到: {save_path}[/green]")
 
 
-def main():
+def main(resume_from_checkpoint: Optional[str] = None):
     """主函数"""
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--resume", type=str, default=None, help="从checkpoint恢复训练")
+    args, _ = parser.parse_known_args()
+
+    # 命令行参数覆盖
+    resume_from_checkpoint = args.resume or resume_from_checkpoint
+
     from config import config
 
     # 创建训练器
@@ -295,7 +311,7 @@ def main():
     trainer.setup_trainer(train_dataset, val_dataset)
 
     # 开始训练
-    trainer.train()
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 
     # 保存模型
     trainer.save_model()
