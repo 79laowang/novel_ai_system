@@ -9,11 +9,24 @@ from typing import Optional, List
 @dataclass
 class ModelConfig:
     """模型配置"""
-    # 基础模型选择 (推荐使用开源中文模型)
-    base_model: str = "Qwen/Qwen2.5-7B-Instruct"  # 或 "deepseek-ai/DeepSeek-V3"
-    # 备选: "01-ai/Yi-1.5-9B-Chat", "THUDM/glm-4-9b-chat"
+    # 推理后端选择: "vllm" (GPU) 或 "llama_cpp" (CPU)
+    inference_backend: str = "llama_cpp"
 
-    # vLLM 推理配置
+    # 基础模型选择 (推荐使用开源中文模型)
+    base_model: str = "Qwen/Qwen2.5-7B-Instruct"  # Hugging Face 格式，用于训练
+    # 备选: "THUDM/glm-4-9b-chat", "01-ai/Yi-1.5-9B-Chat"
+
+    # llama.cpp 配置 (CPU 推理)
+    llama_cpp_model_path: str = "./models/qwen2.5-7b-q5_k_m.gguf"  # GGUF 模型路径 (从 HF 转换)
+    llama_cpp_lora_path: Optional[str] = "./models/lora-gguf"  # GGUF LoRA 路径 (从训练结果转换)
+    llama_cpp_n_ctx: int = 32768  # 上下文长度
+    llama_cpp_n_threads: int = 6  # CPU 线程数
+    llama_cpp_n_batch: int = 512  # 批处理大小
+    llama_cpp_use_mmap: bool = True  # 使用内存映射
+    llama_cpp_use_mlock: bool = False  # 使用内存锁定 (需要 root)
+    llama_cpp_gpu_layers: int = 0  # GPU 层数 (0=全CPU, >0=部分GPU)
+
+    # vLLM 推理配置 (GPU 推理)
     vllm_tensor_parallel_size: int = 1  # GPU数量
     vllm_gpu_memory_utilization: float = 0.90  # GPU显存使用率
     vllm_max_model_len: int = 32768  # 最大序列长度

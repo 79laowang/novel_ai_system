@@ -1,10 +1,11 @@
 # 中文小说写作AI系统
 
-基于 **vLLM + LoRA + ChromaDB** 的智能小说创作系统，支持训练、推理和记忆管理。
+基于 **vLLM/llama.cpp + LoRA + ChromaDB** 的智能小说创作系统，支持训练、推理和记忆管理。
 
 ## ✨ 特性
 
-- **高性能推理**: 基于 vLLM，支持快速文本生成
+- **双推理后端**: 支持 GPU (vLLM) 和 CPU (llama.cpp) 推理
+- **高性能推理**: GPU 上使用 vLLM，CPU 上使用 llama.cpp
 - **LoRA 微调**: QLoRA 4-bit 量化训练，降低显存需求
 - **记忆功能**: 向量数据库存储，支持长期记忆和 RAG
 - **WebUI 界面**: Gradio 构建，易于使用
@@ -12,51 +13,67 @@
 
 ## 📋 系统要求
 
+### GPU 训练机器
 - Python 3.8+
 - CUDA 12.0+
 - GPU: 建议 16GB+ 显存 (RTX 4090 / A100 等)
 - 内存: 建议 64GB+
 
+### CPU 推理机器
+- Python 3.8+
+- 内存: 建议 22GB+ (7B 模型，Q5 量化)
+- CPU: 建议 6 核心以上
+
 ## 🚀 快速开始
 
-### 1. 安装依赖
+### 方式一：GPU 训练 + GPU 推理
 
 ```bash
-cd novel_ai_system
+# 1. 安装依赖
 pip install -r requirements.txt
-```
 
-### 2. 准备训练数据
-
-创建示例数据（用于测试）:
-```bash
+# 2. 准备训练数据
 python start.py prepare --sample
-```
 
-或使用自己的小说数据:
-```bash
-# 将小说文件放入 data/raw/ 目录
-# 支持 .txt, .json, .jsonl 格式
-python start.py prepare
-```
+# 3. 训练模型
+python start.py train
 
-### 3. 启动 WebUI
-
-```bash
+# 4. 启动 WebUI (使用 vLLM)
 python start.py webui
 ```
 
-访问 `http://localhost:7860` 开始使用！
-
-### 4. 训练模型 (可选)
+### 方式二：GPU 训练 + CPU 推理 ⭐ 推荐
 
 ```bash
+# GPU 机器上：
+# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 准备训练数据
+python start.py prepare --sample
+
+# 3. 训练模型
 python start.py train
-```
 
-训练完成后，使用 LoRA 权重启动:
-```bash
-python start.py webui --lora ./checkpoints/final_model
+# 4. 转换模型为 GGUF 格式
+python start.py convert hf-to-gguf --model Qwen/Qwen2.5-7B-Instruct --quant Q5_K_M
+python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
+
+# 5. 将模型文件复制到 CPU 机器
+# ./models/qwen2.5-7b-q5_k_m.gguf
+# ./models/lora-gguf/
+
+# CPU 机器上：
+# 1. 安装依赖 (不需要 torch/vllm)
+pip install llama-cpp-python gradio chromadb langchain sentence-transformers
+
+# 2. 修改 config.py
+# inference_backend: str = "llama_cpp"
+# llama_cpp_model_path: str = "./models/qwen2.5-7b-q5_k_m.gguf"
+# llama_cpp_lora_path: str = "./models/lora-gguf"
+
+# 3. 启动 WebUI (使用 llama.cpp)
+python start.py webui
 ```
 
 ## 🎓 训练完整指南
@@ -410,9 +427,17 @@ python start.py train [OPTIONS]
     --epochs N      训练轮数 (默认: 3)
     --batch-size N  批次大小 (默认: 2)
     --lr FLOAT      学习率 (默认: 2e-4)
+    --resume PATH   从 checkpoint 恢复
 
 # 推理测试
 python start.py inference
+
+# 模型格式转换
+python start.py convert [SUBCOMMAND]
+
+  SUBCOMMANDS:
+    hf-to-gguf      转换 Hugging Face 模型为 GGUF 格式
+    lora-to-gguf    转换 LoRA 权重为 GGUF 格式
 ```
 
 ## 📁 项目结构
@@ -434,13 +459,19 @@ novel_ai_system/
 │
 ├── logs/                  # 日志文件
 │
-├── models/                # 下载的模型
+├── models/                # 模型文件 (GGUF)
+│
+├── scripts/               # 转换脚本
+│   ├── convert_hf_to_gguf.sh
+│   └── convert_lora_to_gguf.sh
 │
 └── src/
     ├── train/            # 训练模块
     │   └── train_lora.py
     ├── inference/        # 推理模块
-    │   └── vllm_server.py
+    │   ├── backend_factory.py   # 后端工厂
+    │   ├── vllm_server.py       # vLLM 推理
+    │   └── llama_server.py      # llama.cpp 推理
     ├── memory/           # 记忆模块
     │   └── memory_manager.py
     ├── data/             # 数据处理
@@ -454,22 +485,30 @@ novel_ai_system/
 编辑 `config.py` 自定义配置:
 
 ```python
-# 模型配置
-model.base_model = "Qwen/Qwen2.5-7B-Instruct"  # 基础模型
+# === 推理后端选择 ===
+model.inference_backend = "llama_cpp"  # "vllm" (GPU) 或 "llama_cpp" (CPU)
+
+# === vLLM 配置 (GPU 推理) ===
+model.vllm_max_model_len = 32768
+model.vllm_gpu_memory_utilization = 0.85
+
+# === llama.cpp 配置 (CPU 推理) ===
+model.llama_cpp_model_path = "./models/qwen2.5-7b-q5_k_m.gguf"
+model.llama_cpp_lora_path = "./models/lora-gguf"
+model.llama_cpp_n_ctx = 32768       # 上下文长度
+model.llama_cpp_n_threads = 6       # CPU 线程数
+
+# === 训练配置 ===
+model.base_model = "Qwen/Qwen2.5-7B-Instruct"  # 基础模型 (Hugging Face 格式)
 model.load_in_4bit = True                       # 4-bit 量化
 model.lora_r = 64                               # LoRA rank
 
-# 训练配置
 training.num_train_epochs = 3
 training.per_device_train_batch_size = 2
 training.gradient_accumulation_steps = 8
 training.learning_rate = 2e-4
 
-# 推理配置
-model.vllm_max_model_len = 32768
-model.vllm_gpu_memory_utilization = 0.85
-
-# 记忆配置
+# === 记忆配置 ===
 memory.embedding_model = "BAAI/bge-m3"
 memory.max_memory_items = 1000
 ```
@@ -485,16 +524,55 @@ memory.max_memory_items = 1000
         │             │             │
         ▼             ▼             ▼
    ┌─────────┐  ┌─────────┐  ┌───────────┐
-   │ vLLM    │  │ LoRA    │  │ ChromaDB  │
-   │ 推理引擎 │  │ 微调    │  │ 记忆存储  │
-   └─────────┘  └─────────┘  └───────────┘
-        │             │
-        └──────┬──────┘
-               ▼
-        ┌─────────────┐
-        │   Qwen2.5   │
-        │  (或其他)   │
-        └─────────────┘
+   │ Inference│  │ LoRA    │  │ ChromaDB  │
+   │ Backend  │  │ 微调    │  │ 记忆存储  │
+   │  Factory │  └─────────┘  └───────────┘
+   └─────┬─────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+┌───────┐ ┌──────────┐
+│ vLLM  │ │llama.cpp │
+│ (GPU) │ │  (CPU)   │
+└───────┘ └──────────┘
+    │         │
+    └────┬────┘
+         ▼
+  ┌─────────────┐
+  │   Qwen2.5   │
+  │ (HF/GGUF)   │
+  └─────────────┘
+```
+
+### GPU 训练 + CPU 推理工作流
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    GPU 机器 - 训练阶段                              │
+│                                                                       │
+│  Qwen/Qwen2.5-7B-Instruct (Hugging Face)                            │
+│                │                                                    │
+│                ├─► LoRA 训练 ──► adapter_model.safetensors           │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ 转换
+┌─────────────────────────────────────────────────────────────────────┐
+│                    模型格式转换                                     │
+│                                                                       │
+│  HF 模型 ──convert_hf_to_gguf──► FP16 GGUF ──quantize──► Q5 GGUF  │
+│  LoRA ───convert-lora-to-gguf──► GGUF LoRA adapter                 │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CPU 机器 - 推理阶段                              │
+│                                                                       │
+│  llama.cpp 加载 GGUF 模型 + GGUF LoRA                               │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 📚 推荐基础模型
@@ -505,6 +583,25 @@ memory.max_memory_items = 1000
 - **DeepSeek-V3**: 最新的开源中文模型
 
 ## 🐛 常见问题
+
+### 推理后端选择
+- **GPU 机器**: 使用 `inference_backend = "vllm"` 获得最佳性能
+- **CPU 机器**: 使用 `inference_backend = "llama_cpp"` 进行 CPU 推理
+- **GGUF 模型转换**: 使用 `python start.py convert hf-to-gguf` 转换模型
+
+### GGUF 模型转换
+```bash
+# 转换基础模型 (一次即可)
+python start.py convert hf-to-gguf --model Qwen/Qwen2.5-7B-Instruct --quant Q5_K_M
+
+# 转换 LoRA 权重 (每次训练后)
+python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
+```
+
+### llama.cpp CPU 推理性能
+- **Q5_K_M 量化**: ~4-6 tokens/秒 (6核 CPU)
+- **Q8_0 量化**: ~3-5 tokens/秒 (更高精度)
+- 调整 `llama_cpp_n_threads` 以匹配 CPU 核心数
 
 ### 显存不足
 - 使用 4-bit 量化: `model.load_in_4bit = True`
@@ -693,9 +790,11 @@ MIT License
 ## 🙏 致谢
 
 - [Qwen](https://github.com/QwenLM/Qwen) - 优秀的中文开源模型
-- [vLLM](https://github.com/vllm-project/vllm) - 高性能推理引擎
+- [vLLM](https://github.com/vllm-project/vllm) - 高性能 GPU 推理引擎
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) - 高效 CPU 推理引擎
 - [Gradio](https://github.com/gradio-app/gradio) - WebUI 框架
 - [ChromaDB](https://github.com/chroma-core/chroma) - 向量数据库
+- [PEFT](https://github.com/huggingface/peft) - LoRA 微调库
 
 ---
 

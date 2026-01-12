@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Chinese Novel Writing AI System** - A sophisticated AI-powered novel writing system built with vLLM + LoRA + ChromaDB, optimized for Chinese novel generation with training, inference, and memory management capabilities.
+**Chinese Novel Writing AI System** - A sophisticated AI-powered novel writing system built with **vLLM/llama.cpp + LoRA + ChromaDB**, optimized for Chinese novel generation with training, inference, and memory management capabilities.
+
+**Key Feature**: Supports dual inference backends - **vLLM for GPU** and **llama.cpp for CPU**.
 
 ## Common Commands
 
@@ -49,13 +51,22 @@ python start.py webui --host 0.0.0.0 --port 7860 --share
 
 ### Testing/Debugging
 ```bash
-# Direct vLLM inference test
+# Direct inference test (uses configured backend)
 python start.py inference
 
 # Monitor debug logs
 ./watch_logs.sh
 # or
 tail -f logs/debug.log
+```
+
+### Model Conversion (GGUF Format)
+```bash
+# Convert Hugging Face model to GGUF (for llama.cpp)
+python start.py convert hf-to-gguf --model Qwen/Qwen2.5-7B-Instruct --quant Q5_K_M
+
+# Convert trained LoRA to GGUF format
+python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
 ```
 
 ## Architecture
@@ -65,8 +76,12 @@ tail -f logs/debug.log
 ```
 Gradio WebUI (src/webui/app.py)
     │
-    ├──► VLLM Server (src/inference/vllm_server.py)
-    │    └──► AsyncLLMEngine + LoRA weights
+    ├──► Inference Backend (src/inference/backend_factory.py)
+    │    ├──► VLLM Server (src/inference/vllm_server.py) [GPU]
+    │    │    └──► AsyncLLMEngine + LoRA weights
+    │    │
+    │    └──► Llama.cpp Server (src/inference/llama_server.py) [CPU]
+    │         └──► GGUF model + GGUF LoRA adapter
     │
     ├──► Memory Manager (src/memory/memory_manager.py)
     │    └──► ChromaDB + Sentence Transformers (BGE-M3 embeddings)
@@ -82,23 +97,44 @@ Gradio WebUI (src/webui/app.py)
 - `train` - Start LoRA training
 - `prepare` - Prepare training data
 - `inference` - Run inference tests
+- `convert` - Model format conversion (HF→GGUF, LoRA→GGUF)
 
 ### Core Components
 
 #### 1. Configuration (`config.py`)
 Centralized configuration using dataclasses:
-- `ModelConfig` - vLLM settings, LoRA parameters, quantization
+- `ModelConfig` - Inference backend selector, vLLM/llama.cpp settings, LoRA parameters, quantization
 - `TrainingConfig` - Training parameters, data paths
 - `MemoryConfig` - ChromaDB settings, embedding model (BAAI/bge-m3)
 - `WebUIConfig` - Interface settings, generation parameters
 - `SystemConfig` - Paths, logging, system settings
 
-#### 2. Inference Engine (`src/inference/vllm_server.py`)
+**Inference Backend Selection**:
+```python
+# config.py
+inference_backend: str = "llama_cpp"  # "vllm" for GPU, "llama_cpp" for CPU
+```
+
+#### 2. Inference Engines
+
+**VLLM Server** (`src/inference/vllm_server.py`) - GPU inference:
 - **Key Pattern**: Complex event loop synchronization between Gradio and vLLM
 - Uses `AsyncLLMEngine` from vLLM 0.6+
 - LoRA weight loading on demand via `LoRARequest`
 - Critical async/sync wrapper for Gradio compatibility
 - Event loop bridge using `asyncio.run_coroutine_threadsafe()`
+
+**Llama.cpp Server** (`src/inference/llama_server.py`) - CPU inference:
+- Uses `llama-cpp-python` bindings
+- Loads GGUF format models (converted from Hugging Face)
+- Supports GGUF LoRA adapters
+- Synchronous API (simpler than vLLM)
+- Configurable thread count and context length
+
+**Backend Factory** (`src/inference/backend_factory.py`):
+- Selects appropriate inference backend based on `config.model.inference_backend`
+- Provides unified interface for both backends
+- Handles async/sync compatibility
 
 **Event Loop Architecture**: The system handles a complex async scenario where Gradio runs in its own event loop while vLLM's `AsyncLLMEngine` runs in the main event loop. Cross-loop communication uses:
 - Global variable `_engine_event_loop` in `src/webui/app.py`
@@ -131,8 +167,58 @@ Centralized configuration using dataclasses:
 1. User input → Gradio
 2. Memory retrieval based on query (ChromaDB semantic search)
 3. Prompt formatting with context/memories
-4. vLLM generation with configurable sampling
+4. Backend generation (vLLM or llama.cpp) with configurable sampling
 5. Result post-processing and memory storage
+
+#### Dual Backend Workflow (GPU Training + CPU Inference)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              GPU 机器 - 训练阶段                                      │
+│                                                                       │
+│  基础模型: Qwen/Qwen2.5-7B-Instruct  (Hugging Face 格式)             │
+│                │                                                    │
+│                ├─► LoRA 训练 (Transformers + PEFT)                  │
+│                │                                                    │
+│                ▼                                                    │
+│  输出: ./checkpoints/final_model/                                   │
+│        ├── adapter_config.json                                      │
+│        └── adapter_model.safetensors  ← LoRA 权重                  │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ 转换
+┌─────────────────────────────────────────────────────────────────────┐
+│              GPU 或 CPU 机器 - 模型转换                               │
+│                                                                       │
+│  1. 基础模型转换 (只需一次)                                          │
+│     convert_hf_to_gguf.py → llama-quantize                          │
+│     │                                                               │
+│     ▼                                                               │
+│     ./models/qwen2.5-7b-q5_k_m.gguf                                 │
+│                                                                       │
+│  2. LoRA 转换 (每次训练后)                                           │
+│     convert-lora-to-gguf.py                                         │
+│     │                                                               │
+│     ▼                                                               │
+│     ./models/lora-gguf/                                             │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              CPU 机器 - 推理阶段                                      │
+│                                                                       │
+│  llama.cpp --model ./models/qwen2.5-7b-q5_k_m.gguf \                │
+│            --lora ./models/lora-gguf                                 │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Model Conversion Process
+- **HF → GGUF**: Two-step process (format conversion → quantization)
+- **LoRA → GGUF**: Direct conversion using llama.cpp tools
+- See `scripts/convert_hf_to_gguf.sh` and `scripts/convert_lora_to_gguf.sh`
 
 #### Event Loop Synchronization (Critical)
 When modifying `src/inference/vllm_server.py` or `src/webui/app.py`:
@@ -146,7 +232,8 @@ When modifying `src/inference/vllm_server.py` or `src/webui/app.py`:
 
 ### Core ML Stack
 - PyTorch 2.5.0+, Transformers 4.46.0+, PEFT 0.13.0+, BitsAndBytes 0.44.0+
-- vLLM 0.6.0+ (high-performance inference)
+- vLLM 0.6.0+ (GPU inference)
+- llama-cpp-python 0.3.0+ (CPU inference)
 
 ### Memory & RAG
 - ChromaDB 0.6.0+, Sentence Transformers 3.3.0+, LangChain 0.3.0+
@@ -162,7 +249,6 @@ novel_ai_system/
 ├── start.py               # CLI entry point
 ├── requirements.txt       # Python dependencies
 ├── install.sh             # Automated setup script
-├── test_inference.py      # Direct vLLM test
 ├── watch_logs.sh          # Log monitoring
 │
 ├── data/
@@ -173,11 +259,18 @@ novel_ai_system/
 │
 ├── checkpoints/          # LoRA model checkpoints
 ├── logs/                 # Debug and training logs
-├── models/               # Downloaded base models
+├── models/               # Downloaded/converted models (GGUF)
+│
+├── scripts/              # Conversion and utility scripts
+│   ├── convert_hf_to_gguf.sh
+│   └── convert_lora_to_gguf.sh
 │
 └── src/
     ├── train/            # LoRA training
-    ├── inference/        # vLLM inference
+    ├── inference/        # vLLM/llama.cpp inference
+    │   ├── backend_factory.py
+    │   ├── vllm_server.py
+    │   └── llama_server.py
     ├── memory/           # Memory management
     ├── data/             # Data processing
     └── webui/            # Gradio interface

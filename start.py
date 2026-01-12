@@ -7,6 +7,7 @@
 2. train - 启动训练
 3. prepare - 准备训练数据
 4. inference - 命令行推理测试
+5. convert - 模型格式转换 (HF → GGUF, LoRA → GGUF)
 """
 import os
 import sys
@@ -66,14 +67,68 @@ def prepare_data(args):
 
 def run_inference(args):
     """运行推理测试"""
-    import asyncio
-    from src.inference.vllm_server import main as inference_main
+    from config import config
+    backend = config.model.inference_backend
 
     print("=" * 60)
     print("🤖 运行推理测试")
+    print(f"📊 推理后端: {backend}")
     print("=" * 60)
 
-    asyncio.run(inference_main())
+    if backend == "vllm":
+        import asyncio
+        from src.inference.vllm_server import main as inference_main
+        asyncio.run(inference_main())
+    elif backend == "llama_cpp":
+        from src.inference.llama_server import main as inference_main
+        inference_main()
+    else:
+        print(f"❌ 不支持的推理后端: {backend}")
+        print("支持的后端: vllm, llama_cpp")
+        sys.exit(1)
+
+
+def convert_model(args):
+    """模型格式转换"""
+    import subprocess
+    from pathlib import Path
+
+    script_dir = Path(__file__).parent / "scripts"
+
+    print("=" * 60)
+    print("🔄 模型格式转换")
+    print("=" * 60)
+
+    if args.convert_type == "hf-to-gguf":
+        # Hugging Face → GGUF
+        script = script_dir / "convert_hf_to_gguf.sh"
+        model = args.model or "Qwen/Qwen2.5-7B-Instruct"
+        quant = args.quant or "Q5_K_M"
+
+        print(f"📦 转换: {model}")
+        print(f"📊 量化类型: {quant}")
+        print()
+
+        subprocess.run([str(script), model, quant], check=True)
+
+    elif args.convert_type == "lora-to-gguf":
+        # LoRA → GGUF
+        script = script_dir / "convert_lora_to_gguf.sh"
+        base_model = args.base_model or "Qwen/Qwen2.5-7B-Instruct"
+        lora_path = args.lora_path or "./checkpoints/final_model"
+        output_dir = args.output_dir or "./models/lora-gguf"
+
+        print(f"📦 基础模型: {base_model}")
+        print(f"📦 LoRA 路径: {lora_path}")
+        print(f"📁 输出目录: {output_dir}")
+        print()
+
+        subprocess.run([str(script), base_model, lora_path, output_dir], check=True)
+
+    else:
+        print(f"❌ 不支持的转换类型: {args.convert_type}")
+        print("支持的类型: hf-to-gguf, lora-to-gguf")
+        sys.exit(1)
 
 
 def main():
@@ -128,6 +183,21 @@ def main():
     # 推理模式
     inference_parser = subparsers.add_parser("inference", help="运行推理测试")
 
+    # 转换模式
+    convert_parser = subparsers.add_parser("convert", help="模型格式转换")
+    convert_subparsers = convert_parser.add_subparsers(dest="convert_type", help="转换类型")
+
+    # HF → GGUF 转换
+    hf_gguf_parser = convert_subparsers.add_parser("hf-to-gguf", help="Hugging Face 模型转换为 GGUF 格式")
+    hf_gguf_parser.add_argument("--model", type=str, default=None, help="Hugging Face 模型名称")
+    hf_gguf_parser.add_argument("--quant", type=str, default=None, help="量化类型 (Q5_K_M, Q8_0, etc.)")
+
+    # LoRA → GGUF 转换
+    lora_gguf_parser = convert_subparsers.add_parser("lora-to-gguf", help="LoRA 权重转换为 GGUF 格式")
+    lora_gguf_parser.add_argument("--base-model", type=str, default=None, help="基础模型名称")
+    lora_gguf_parser.add_argument("--lora-path", type=str, default=None, help="LoRA 权重路径")
+    lora_gguf_parser.add_argument("--output-dir", type=str, default=None, help="输出目录")
+
     args = parser.parse_args()
 
     # 默认启动WebUI
@@ -143,6 +213,8 @@ def main():
         prepare_data(args)
     elif args.mode == "inference":
         run_inference(args)
+    elif args.mode == "convert":
+        convert_model(args)
     else:
         parser.print_help()
 

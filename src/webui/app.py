@@ -17,7 +17,7 @@ from rich.console import Console
 from rich import print as rprint
 
 # 导入本地模块
-from src.inference.vllm_server import VLLMNovelGenerator, get_generator
+from src.inference.backend_factory import create_generator, get_generator, get_generator_sync
 from src.memory.memory_manager import NovelMemoryManager, get_memory_manager
 
 console = Console()
@@ -28,7 +28,7 @@ class NovelWebUI:
 
     def __init__(self, config):
         self.config = config
-        self.generator: Optional[VLLMNovelGenerator] = None
+        self.generator = None  # 类型根据后端动态确定
         self.memory_manager: Optional[NovelMemoryManager] = None
         self.current_session: List[Dict[str, str]] = []
 
@@ -36,9 +36,20 @@ class NovelWebUI:
         """初始化组件"""
         rprint("[bold cyan]正在初始化WebUI组件...[/bold cyan]")
 
-        # 初始化生成器
-        self.generator = VLLMNovelGenerator(self.config)
-        await self.generator.initialize(lora_path)
+        # 显示推理后端
+        backend = self.config.model.inference_backend
+        rprint(f"[cyan]推理后端: {backend}[/cyan]")
+
+        # 初始化生成器（使用工厂函数）
+        self.generator = create_generator(self.config)
+
+        # 根据生成器类型选择初始化方式
+        import inspect
+        init_method = self.generator.initialize
+        if inspect.iscoroutinefunction(init_method):
+            await self.generator.initialize(lora_path)
+        else:
+            self.generator.initialize(lora_path)
 
         # 初始化记忆管理器
         self.memory_manager = NovelMemoryManager(self.config)
@@ -421,17 +432,31 @@ class NovelWebUI:
             memory_context = self.memory_manager.get_formatted_context(user_input)
             logger.info(f"[记忆系统] 上下文长度: {len(memory_context)} 字符")
 
-        # 生成内容
-        logger.info("[vLLM] 开始生成...")
-        result = await self.generator.generate_novel(
-            user_input=user_input,
-            context=memory_context,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-        )
-        logger.info(f"[vLLM] 生成完成，结果长度: {len(result)} 字符")
+        # 生成内容（支持异步和同步生成器）
+        logger.info(f"[{self.config.model.inference_backend}] 开始生成...")
+
+        # 检查生成器是否有异步方法
+        if hasattr(self.generator, 'generate_novel_async'):
+            result = await self.generator.generate_novel_async(
+                user_input=user_input,
+                context=memory_context,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+            )
+        else:
+            # 同步方法，直接调用
+            result = self.generator.generate_novel(
+                user_input=user_input,
+                context=memory_context,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+            )
+
+        logger.info(f"[{self.config.model.inference_backend}] 生成完成，结果长度: {len(result)} 字符")
 
         # 保存到历史
         history.append({

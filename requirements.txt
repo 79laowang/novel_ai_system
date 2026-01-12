@@ -3,8 +3,12 @@ torch>=2.5.0
 torchvision>=0.20.0
 torchaudio>=2.5.0
 
-# vLLM for high-performance inference
+# vLLM for high-performance inference (GPU)
 vllm>=0.6.0
+
+# llama.cpp for CPU inference
+llama-cpp-python>=0.3.0; platform_system != "Darwin"
+llama-cpp-python>=0.3.0; platform_system == "Darwin" and platform_machine == "arm64"
 
 # Transformers & Training
 transformers>=4.46.0
