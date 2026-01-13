@@ -40,8 +40,26 @@ def launch_train(args):
     print("🎯 启动模型微调训练")
     print("=" * 60)
 
-    resume_from = getattr(args, 'resume', None)
-    train_main(resume_from_checkpoint=resume_from)
+    # 收集训练参数
+    train_kwargs = {}
+    if hasattr(args, 'resume') and args.resume:
+        train_kwargs['resume_from_checkpoint'] = args.resume
+    if hasattr(args, 'train_data') and args.train_data:
+        train_kwargs['train_data_path'] = args.train_data
+    if hasattr(args, 'val_data') and args.val_data:
+        train_kwargs['val_data_path'] = args.val_data
+    if hasattr(args, 'output_dir') and args.output_dir:
+        train_kwargs['output_dir'] = args.output_dir
+    if hasattr(args, 'checkpoint_dir') and args.checkpoint_dir:
+        train_kwargs['checkpoint_dir'] = args.checkpoint_dir
+    if hasattr(args, 'epochs') and args.epochs:
+        train_kwargs['num_train_epochs'] = args.epochs
+    if hasattr(args, 'batch_size') and args.batch_size:
+        train_kwargs['per_device_train_batch_size'] = args.batch_size
+    if hasattr(args, 'lr') and args.lr:
+        train_kwargs['learning_rate'] = args.lr
+
+    train_main(**train_kwargs)
 
 
 def prepare_data(args):
@@ -147,8 +165,16 @@ def main():
   # 准备训练数据
   python start.py prepare --sample
 
-  # 开始训练
+  # 开始训练 (使用默认配置)
   python start.py train
+
+  # 开始训练 (指定数据和输出目录)
+  # 示例: 使用 urban-novels 数据集
+  # python start.py train \\
+  #   --train-data ./data/train_urban-novels/train.jsonl \\
+  #   --val-data ./data/val_urban-novels/val.jsonl \\
+  #   --output-dir ./checkpoints/urban-novels_model \\
+  #   --epochs 3
 
   # 推理测试
   python start.py inference
@@ -167,10 +193,14 @@ def main():
     # 训练模式
     train_parser = subparsers.add_parser("train", help="启动模型训练")
     train_parser.add_argument("--data", type=str, default=None, help="训练数据路径")
+    train_parser.add_argument("--train-data", type=str, default=None, help="训练数据路径 (JSONL)")
+    train_parser.add_argument("--val-data", type=str, default=None, help="验证数据路径 (JSONL)")
     train_parser.add_argument("--epochs", type=int, default=None, help="训练轮数")
     train_parser.add_argument("--batch-size", type=int, default=None, help="批次大小")
     train_parser.add_argument("--lr", type=float, default=None, help="学习率")
     train_parser.add_argument("--resume", type=str, default=None, help="从checkpoint恢复训练")
+    train_parser.add_argument("--output-dir", type=str, default=None, help="输出目录")
+    train_parser.add_argument("--checkpoint-dir", type=str, default=None, help="检查点目录")
 
     # 数据准备模式
     prepare_parser = subparsers.add_parser("prepare", help="准备训练数据")

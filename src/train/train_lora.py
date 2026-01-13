@@ -283,17 +283,74 @@ class NovelTrainer:
         rprint(f"[green]✓ 模型已保存到: {save_path}[/green]")
 
 
-def main(resume_from_checkpoint: Optional[str] = None):
-    """主函数"""
+def main(
+    resume_from_checkpoint: Optional[str] = None,
+    train_data_path: Optional[str] = None,
+    val_data_path: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    checkpoint_dir: Optional[str] = None,
+    num_train_epochs: Optional[int] = None,
+    per_device_train_batch_size: Optional[int] = None,
+    learning_rate: Optional[float] = None,
+):
+    """主函数
+
+    Args:
+        resume_from_checkpoint: 从checkpoint恢复训练
+        train_data_path: 训练数据路径 (JSONL)
+        val_data_path: 验证数据路径 (JSONL)
+        output_dir: 输出目录
+        checkpoint_dir: 检查点目录
+        num_train_epochs: 训练轮数
+        per_device_train_batch_size: 批次大小
+        learning_rate: 学习率
+    """
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--resume", type=str, default=None, help="从checkpoint恢复训练")
+    parser.add_argument("--train-data", type=str, default=None, help="训练数据路径")
+    parser.add_argument("--val-data", type=str, default=None, help="验证数据路径")
+    parser.add_argument("--output-dir", type=str, default=None, help="输出目录")
+    parser.add_argument("--checkpoint-dir", type=str, default=None, help="检查点目录")
+    parser.add_argument("--epochs", type=int, default=None, help="训练轮数")
+    parser.add_argument("--batch-size", type=int, default=None, help="批次大小")
+    parser.add_argument("--lr", type=float, default=None, help="学习率")
     args, _ = parser.parse_known_args()
 
     # 命令行参数覆盖
     resume_from_checkpoint = args.resume or resume_from_checkpoint
+    train_data_path = args.train_data or train_data_path
+    val_data_path = args.val_data or val_data_path
+    output_dir = args.output_dir or output_dir
+    checkpoint_dir = args.checkpoint_dir or checkpoint_dir
+    num_train_epochs = args.epochs or num_train_epochs
+    per_device_train_batch_size = args.batch_size or per_device_train_batch_size
+    learning_rate = args.lr or learning_rate
 
     from config import config
+
+    # 覆盖配置值
+    if train_data_path:
+        config.training.train_data_path = train_data_path
+        rprint(f"[cyan]使用训练数据: {train_data_path}[/cyan]")
+    if val_data_path:
+        config.training.val_data_path = val_data_path
+        rprint(f"[cyan]使用验证数据: {val_data_path}[/cyan]")
+    if output_dir:
+        config.training.output_dir = output_dir
+        rprint(f"[cyan]输出目录: {output_dir}[/cyan]")
+    if checkpoint_dir:
+        config.training.checkpoint_dir = checkpoint_dir
+        rprint(f"[cyan]检查点目录: {checkpoint_dir}[/cyan]")
+    if num_train_epochs:
+        config.training.num_train_epochs = num_train_epochs
+        rprint(f"[cyan]训练轮数: {num_train_epochs}[/cyan]")
+    if per_device_train_batch_size:
+        config.training.per_device_train_batch_size = per_device_train_batch_size
+        rprint(f"[cyan]批次大小: {per_device_train_batch_size}[/cyan]")
+    if learning_rate:
+        config.training.learning_rate = learning_rate
+        rprint(f"[cyan]学习率: {learning_rate}[/cyan]")
 
     # 创建训练器
     trainer = NovelTrainer(config)
