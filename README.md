@@ -320,6 +320,86 @@ python start.py webui --lora ./checkpoints/checkpoint-5000
 # 启动后访问 http://localhost:7860
 ```
 
+## 📦 模型打包与部署
+
+### 快速部署到 CPU 机器
+
+训练完成后，将模型打包并部署到其他 CPU 机器进行推理：
+
+```bash
+# 1. 转换 LoRA 为 GGUF 格式 (每次训练后)
+bash ./scripts/convert_lora_to_gguf.sh \
+  ~/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/* \
+  ./checkpoints/<model_name>/final_model
+
+# 2. 打包模型 (自动包含基础模型 + LoRA)
+./package_model.sh <model_name>
+
+# 3. 传输到目标机器
+scp ./packages/<model_name>_cpu_*.tar.gz user@host:/path/
+
+# 4. 在目标机器解压并部署
+tar -xzf <model_name>_cpu_*.tar.gz
+cd <model_name>_deployment
+bash deploy.sh
+```
+
+### 打包脚本说明
+
+`package_model.sh` 自动完成以下操作：
+
+1. **检查 GGUF 模型**: 验证基础模型和 LoRA 文件存在
+2. **准备打包目录**: 创建标准目录结构
+3. **复制模型文件**: 复制 GGUF 基础模型和 LoRA 适配器
+4. **生成部署脚本**: 创建 `deploy.sh` 和 `start.sh`
+5. **压缩打包**: 生成 `.tar.gz` 部署包
+
+**打包内容结构**:
+```
+<model_name>_deployment/
+├── models/
+│   ├── qwen2.5-7b-q5_k_m.gguf     # 基础模型 (5.1GB)
+│   └── lora-gguf/
+│       └── <model>-gguf.gguf      # LoRA 适配器 (~600MB)
+├── config/
+│   └── model_config.py             # 模型配置参考
+├── deploy.sh                       # 一键部署脚本
+├── start.sh                        # 启动脚本
+├── DEPLOY.md                       # 部署说明
+└── README.txt
+```
+
+### 部署脚本说明
+
+`deploy.sh` 自动完成：
+
+1. **检查项目环境**: 自动定位项目根目录
+2. **复制模型文件**: 复制到项目的 `models/` 目录
+3. **更新配置**: 自动更新 `config.py` 中的模型路径
+4. **备份配置**: 自动备份原配置文件
+
+**使用方法**:
+```bash
+# 在解压后的目录中运行
+cd <model_name>_deployment
+bash deploy.sh
+
+# 部署完成后启动
+cd ..  # 返回项目根目录
+python start.py webui
+# 或使用: bash <model_name>_deployment/start.sh
+```
+
+### 注意事项
+
+| 项目 | 说明 |
+|------|------|
+| **基础模型转换** | 只需转换一次，后续训练无需重复 |
+| **LoRA 转换** | 每次训练后需要重新转换 |
+| **包大小** | 约 5.7GB (压缩后) |
+| **传输时间** | 取决于网络速度，建议使用 rsync 或 scp |
+| **目标环境** | 需要安装 llama-cpp-python 依赖 |
+
 ### 不同场景的配置方案
 
 #### 场景 1: 快速测试（验证流程）
@@ -438,6 +518,12 @@ python start.py convert [SUBCOMMAND]
   SUBCOMMANDS:
     hf-to-gguf      转换 Hugging Face 模型为 GGUF 格式
     lora-to-gguf    转换 LoRA 权重为 GGUF 格式
+
+# 模型打包 (部署到 CPU 机器)
+./package_model.sh [MODEL_NAME]
+
+  自动打包基础 GGUF 模型 + LoRA 适配器
+  生成包含部署脚本的完整部署包
 ```
 
 ## 📁 项目结构
@@ -446,6 +532,7 @@ python start.py convert [SUBCOMMAND]
 novel_ai_system/
 ├── config.py              # 配置文件
 ├── start.py               # 主入口
+├── package_model.sh       # 模型打包脚本
 ├── requirements.txt       # 依赖列表
 ├── README.md             # 说明文档
 │
@@ -460,6 +547,11 @@ novel_ai_system/
 ├── logs/                  # 日志文件
 │
 ├── models/                # 模型文件 (GGUF)
+│   ├── *.gguf            # 基础模型
+│   └── lora-gguf/         # LoRA 适配器
+│
+├── packages/              # 打包输出目录
+│   └── *_deployment/     # 部署包
 │
 ├── scripts/               # 转换脚本
 │   ├── convert_hf_to_gguf.sh

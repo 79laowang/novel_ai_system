@@ -18,7 +18,7 @@ class ModelConfig:
 
     # llama.cpp 配置 (CPU 推理)
     llama_cpp_model_path: str = "./models/qwen2.5-7b-q5_k_m.gguf"  # GGUF 模型路径 (从 HF 转换)
-    llama_cpp_lora_path: Optional[str] = "./models/lora-gguf"  # GGUF LoRA 路径 (从训练结果转换)
+    llama_cpp_lora_path: Optional[str] = "./models/lora-gguf/urban_model-gguf.gguf"  # GGUF LoRA 路径 (从训练结果转换)
     llama_cpp_n_ctx: int = 32768  # 上下文长度
     llama_cpp_n_threads: int = 6  # CPU 线程数
     llama_cpp_n_batch: int = 512  # 批处理大小

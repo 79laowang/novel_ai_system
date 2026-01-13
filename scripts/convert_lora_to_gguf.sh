@@ -62,10 +62,14 @@ fi
 # 执行转换
 echo -e "${CYAN}开始转换 LoRA...${NC}"
 
+# 提取 LoRA 名称用于输出文件
+LORA_NAME=$(basename "$LORA_PATH")
+OUTPUT_FILE="$OUTPUT_DIR/${LORA_NAME}-gguf.pth"
+
 python "$CONVERT_SCRIPT" \
-    --base-model "$BASE_MODEL" \
-    --lora "$LORA_PATH" \
-    --output "$OUTPUT_DIR"
+    --base "$BASE_MODEL" \
+    "$LORA_PATH" \
+    --outfile "$OUTPUT_FILE"
 
 echo ""
 echo -e "${GREEN}✓ LoRA 转换完成${NC}"

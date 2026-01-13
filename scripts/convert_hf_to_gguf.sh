@@ -39,10 +39,11 @@ if [ ! -d "$LLAMA_CPP_DIR" ]; then
 fi
 
 # 步骤 2: 编译 llama.cpp (如果需要)
-if [ ! -f "$LLAMA_CPP_DIR/llama-quantize" ]; then
-    echo -e "${YELLOW}编译 llama.cpp...${NC}"
+if [ ! -f "$LLAMA_CPP_DIR/build/bin/llama-quantize" ]; then
+    echo -e "${YELLOW}编译 llama.cpp (使用 CMake)...${NC}"
     cd "$LLAMA_CPP_DIR"
-    make
+    cmake -B build -DLLAMA_CURL=OFF
+    cmake --build build -j
     cd -
 fi
 
@@ -56,7 +57,7 @@ echo -e "  模型: $MODEL_NAME"
 echo -e "  输出: $F16_OUTPUT"
 
 python "$LLAMA_CPP_DIR/convert_hf_to_gguf.py" \
-    --model "$MODEL_NAME" \
+    "$MODEL_NAME" \
     --outfile "$F16_OUTPUT" \
     --outtype f16
 
@@ -69,7 +70,7 @@ echo -e "${CYAN}步骤 2: 量化到 $QUANT_TYPE${NC}"
 echo -e "  输入: $F16_OUTPUT"
 echo -e "  输出: $QUANT_OUTPUT"
 
-"$LLAMA_CPP_DIR/llama-quantize" \
+"$LLAMA_CPP_DIR/build/bin/llama-quantize" \
     "$F16_OUTPUT" \
     "$QUANT_OUTPUT" \
     "$QUANT_TYPE"
