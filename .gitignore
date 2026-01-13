@@ -6,3 +6,5 @@ logs/
 checkpoints/
 models/
 data/
+packages/
+third_party/
