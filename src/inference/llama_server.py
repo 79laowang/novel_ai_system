@@ -81,21 +81,28 @@ class LlamaCppNovelGenerator:
         rprint(f"[cyan]加载模型: {model_path}[/cyan]")
         start_time = datetime.now()
 
-        self.model = Llama(
-            model_path=str(model_path),
-            n_ctx=self.config.model.llama_cpp_n_ctx,
-            n_threads=self.config.model.llama_cpp_n_threads,
-            n_batch=self.config.model.llama_cpp_n_batch,
-            use_mmap=self.config.model.llama_cpp_use_mmap,
-            use_mlock=self.config.model.llama_cpp_use_mlock,
-            n_gpu_layers=self.config.model.llama_cpp_gpu_layers,
-            verbose=False,
-        )
+        # 准备初始化参数
+        llama_kwargs = {
+            "model_path": str(model_path),
+            "n_ctx": self.config.model.llama_cpp_n_ctx,
+            "n_threads": self.config.model.llama_cpp_n_threads,
+            "n_batch": self.config.model.llama_cpp_n_batch,
+            "use_mmap": self.config.model.llama_cpp_use_mmap,
+            "use_mlock": self.config.model.llama_cpp_use_mlock,
+            "n_gpu_layers": self.config.model.llama_cpp_gpu_layers,
+            "verbose": False,
+        }
 
-        # 加载 LoRA（如果存在）
+        # 添加 LoRA 参数（如果存在）
         if self.lora_path:
-            # llama-cpp-python 会自动加载目录中的 GGUF LoRA 文件
-            rprint(f"[cyan]加载 LoRA: {self.lora_path}[/cyan]")
+            llama_kwargs["lora_path"] = self.lora_path
+            rprint(f"[cyan]将加载 LoRA: {self.lora_path}[/cyan]")
+
+        self.model = Llama(**llama_kwargs)
+
+        # 确认 LoRA 已加载
+        if self.lora_path:
+            rprint(f"[green]✓ LoRA 已加载: {self.lora_path}[/green]")
 
         load_time = (datetime.now() - start_time).total_seconds()
         rprint(f"[bold green]✓ llama.cpp 引擎初始化完成 (耗时: {load_time:.1f}秒)[/bold green]")
@@ -113,7 +120,26 @@ class LlamaCppNovelGenerator:
         # 系统提示
         system_prompt = """你是一位专业的小说作家，擅长创作各种类型的中文小说。
 你的写作风格优美流畅，人物刻画生动，情节引人入胜。
-请根据用户的要求进行创作，保持故事的连贯性和逻辑性。"""
+
+【严格的格式要求 - 必须遵守】
+1. 每段控制在2-4句话，绝对不能超过5句话
+2. 每写完一段后必须换行
+3. 对话必须单独成行，格式："对话内容"
+4. 场景切换时必须空一行
+5. 禁止出现超过100字的连续段落
+
+错误示范（不要这样）：
+一大段连续文字...（超过5句话连在一起）
+
+正确示范（必须这样）：
+第一段内容。
+
+第二段内容。
+
+"人物对话"
+角色说道。
+
+第三段内容。"""
 
         # 添加上下文/记忆
         if memory:
@@ -126,13 +152,86 @@ class LlamaCppNovelGenerator:
             messages.append({"role": "user", "content": f"【故事背景】\n{context}"})
             messages.append({"role": "assistant", "content": "好的，我了解了故事背景，请继续。"})
 
-        # 用户输入
-        messages.append({"role": "user", "content": user_input})
+        # 用户输入 - 强调分段要求
+        formatted_input = f"""请严格按照分段格式创作以下内容：
+
+{user_input}
+
+【输出格式】
+第一段。
+
+第二段。
+
+"对话"
+角色说。
+
+第三段。
+
+记住：每段2-4句话，必须频繁换行！"""
+        messages.append({"role": "user", "content": formatted_input})
 
         # 转换为 ChatML 格式 (Qwen2.5 使用)
         prompt = self._apply_chat_template(messages)
 
         return prompt
+
+    def _post_process_paragraph(self, text: str) -> str:
+        """后处理：自动分段
+
+        策略：
+        1. 按句子结束符（。！？）分割
+        2. 每2-4句合并成一段
+        3. 对话单独成行
+        4. 段落间保留空行
+        """
+        import re
+
+        if not text:
+            return text
+
+        # 清理多余的空白
+        text = re.sub(r'\s+', '', text)  # 去除所有空白
+        text = re.sub(r'([。！？])', r'\1\n', text)  # 在句号后添加换行
+        text = re.sub(r'("[^"]*")', r'\n\1\n', text)  # 对话单独成行
+
+        # 分割成句子数组
+        sentences = [s.strip() for s in text.split('\n') if s.strip()]
+
+        # 重新组织段落
+        paragraphs = []
+        current_para = []
+        sentences_in_para = 0
+
+        for sentence in sentences:
+            # 检查是否是对话
+            is_dialogue = sentence.startswith('"') or sentence.startswith('"') or sentence.startswith('"')
+
+            if is_dialogue:
+                # 对话单独成行
+                if current_para:
+                    paragraphs.append(''.join(current_para))
+                    current_para = []
+                    sentences_in_para = 0
+                paragraphs.append(sentence)
+            else:
+                # 普通句子
+                current_para.append(sentence)
+                sentences_in_para += 1
+
+                # 每2-4句话成一段
+                if sentences_in_para >= 3:  # 平均3句一段
+                    paragraphs.append(''.join(current_para))
+                    current_para = []
+                    sentences_in_para = 0
+
+        # 处理剩余内容
+        if current_para:
+            paragraphs.append(''.join(current_para))
+
+        # 合并段落，段落间保留空行
+        result = '\n\n'.join(paragraphs)
+
+        return result
 
     def _apply_chat_template(self, messages: List[Dict[str, str]]) -> str:
         """手动应用 ChatML 模板"""
@@ -246,7 +345,7 @@ class LlamaCppNovelGenerator:
         top_k: int = 50,
         repetition_penalty: float = 1.1,
     ) -> str:
-        """生成小说内容（带格式化）- 同步方法"""
+        """生成小说内容（带格式化和分段后处理）- 同步方法"""
         prompt = self.format_prompt(user_input, context, memory)
         result = self.generate(
             prompt,
@@ -256,7 +355,33 @@ class LlamaCppNovelGenerator:
             top_k=top_k,
             repetition_penalty=repetition_penalty,
         )
+        # 应用后处理：自动分段
+        result = self._post_process_paragraph(result)
         return result
+
+    def generate_novel_stream(
+        self,
+        user_input: str,
+        context: Optional[str] = None,
+        memory: Optional[str] = None,
+        max_tokens: int = 2048,
+        temperature: float = 0.8,
+        top_p: float = 0.95,
+        top_k: int = 50,
+        repetition_penalty: float = 1.1,
+    ):
+        """流式生成小说内容"""
+        prompt = self.format_prompt(user_input, context, memory)
+        for chunk in self.generate(
+            prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            repetition_penalty=repetition_penalty,
+            stream=True,
+        ):
+            yield chunk
 
     async def generate_novel_async(
         self,

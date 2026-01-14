@@ -62,6 +62,13 @@ class NovelWebUI:
         with gr.Column() as tab:
             gr.Markdown("## 📝 小说创作")
 
+            # 后处理提示
+            gr.Markdown("""
+            <div style="background: linear-gradient(90deg, #667eea22, #764ba222); padding: 12px; border-radius: 8px; border-left: 4px solid #667eea;">
+            ✨ <b>自动分段格式化</b>：生成的内容将自动进行分段处理（对话保持完整，普通文本按2-3句分段）
+            </div>
+            """)
+
             # 输入区域
             with gr.Row():
                 with gr.Column(scale=3):
@@ -123,29 +130,39 @@ class NovelWebUI:
             # 生成历史
             history = gr.State([])
 
-            # 事件绑定 - 使用async处理
-            async def generate_novel_handler(input_text, toggle, max_tok, temp, top_p, top_k, hist):
-                """异步生成小说（Gradio原生支持async）"""
+            # 事件绑定 - 流式生成 + 分段后处理
+            def generate_novel_stream_handler(input_text, toggle, max_tok, temp, top_p, top_k, hist):
+                """流式生成小说（逐字显示，最后应用分段）"""
                 from datetime import datetime
                 import traceback
+                import re
 
                 log_file = self.config.log_dir / 'debug.log'
                 with open(str(log_file), 'a') as f:
-                    f.write(f"\n[{datetime.now()}] [生成请求] 输入: {input_text[:100]}...\n")
+                    f.write(f"\n[{datetime.now()}] [流式生成请求] 输入: {input_text[:100]}...\n")
                     f.write(f"[参数] max_tokens={max_tok}, temp={temp}, top_p={top_p}, top_k={top_k}\n")
 
                 try:
-                    # 检查生成器是否有异步方法
-                    if hasattr(self.generator, 'generate_novel_async'):
-                        result = await self.generator.generate_novel_async(
+                    # 检查生成器是否有流式方法
+                    if hasattr(self.generator, 'generate_novel_stream'):
+                        # 使用流式生成
+                        full_text = ""
+                        for chunk in self.generator.generate_novel_stream(
                             user_input=input_text,
                             max_tokens=max_tok,
                             temperature=temp,
                             top_p=top_p,
                             top_k=top_k,
-                        )
+                        ):
+                            full_text += chunk
+                            # 实时流式输出原始文本
+                            yield full_text, hist
+
+                        # 生成完成后，应用分段后处理
+                        formatted_text = self._post_process_text(full_text)
+                        yield formatted_text, hist
                     else:
-                        # 同步方法，直接调用
+                        # 回退到非流式（已包含分段处理）
                         result = self.generator.generate_novel(
                             user_input=input_text,
                             max_tokens=max_tok,
@@ -153,19 +170,19 @@ class NovelWebUI:
                             top_p=top_p,
                             top_k=top_k,
                         )
+                        yield result, hist
 
                     with open(str(log_file), 'a') as f:
-                        f.write(f"[生成完成] 结果长度: {len(result)}\n")
+                        f.write(f"[生成完成] 结果长度: {len(full_text)}\n")
 
-                    return result, hist
                 except Exception as e:
                     error_msg = f"生成出错: {str(e)}\n{traceback.format_exc()}"
                     with open(str(log_file), 'a') as f:
                         f.write(f"[错误] {error_msg}\n")
-                    return error_msg, hist
+                    yield error_msg, hist
 
             generate_btn.click(
-                fn=generate_novel_handler,
+                fn=generate_novel_stream_handler,
                 inputs=[user_input, memory_toggle, max_tokens, temperature, top_p, top_k, history],
                 outputs=[output, history],
             )
@@ -403,6 +420,67 @@ class NovelWebUI:
             )
 
         return app
+
+    def _post_process_text(self, text: str) -> str:
+        """后处理：智能分段（对话保持完整，包括对话内的换行）"""
+        import re
+
+        if not text or len(text) < 50:
+            return text
+
+        # 策略：提取对话块，保护对话的原始结构
+        # 对话前后自动换行，但对话内部保持原样
+        text_parts = []
+        last_idx = 0
+
+        # 匹配多种引号格式：英文引号 "..." 和 中文引号 「...」『...』
+        # 使用非贪婪匹配避免跨引号匹配
+        dialogue_pattern = r'[\"]([^\"]*?)[\"]|[\u300c\u300c]([^\u300c\u300d]*?)[\u300d\u300d]|[\u300e\u300e]([^\u300e\u300f]*?)[\u300f\u300f]'
+
+        # 找到所有对话块
+        for match in re.finditer(dialogue_pattern, text):
+            # 保存对话前的普通文本
+            if match.start() > last_idx:
+                text_parts.append(('text', text[last_idx:match.start()]))
+
+            # 保存完整对话（保持原始结构）
+            dialogue = match.group(0)
+            text_parts.append(('dialogue', dialogue))
+            last_idx = match.end()
+
+        # 保存最后的普通文本
+        if last_idx < len(text):
+            text_parts.append(('text', text[last_idx:]))
+
+        # 处理普通文本部分：按2-3句分段
+        result_parts = []
+        for part_type, content in text_parts:
+            if part_type == 'dialogue':
+                # 对话单独成段，前后自动空行
+                result_parts.append(content)
+            else:
+                # 普通文本：先按句号分割，再按2-3句组合
+                content = re.sub(r'\s+', '', content)  # 清理空白
+                sentences = re.split(r'([。！？])', content)
+
+                para = []
+                sent_count = 0
+                for i in range(0, len(sentences) - 1, 2):
+                    if sentences[i]:
+                        para.append(sentences[i] + sentences[i + 1])
+                        sent_count += 1
+                        if sent_count >= 2:
+                            result_parts.append(''.join(para))
+                            para = []
+                            sent_count = 0
+
+                if para:
+                    result_parts.append(''.join(para))
+
+        # 合并段落（对话前后自动空行）
+        result = '\n\n'.join(result_parts)
+
+        return result
 
     def _get_custom_css(self) -> str:
         """获取自定义CSS"""

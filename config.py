@@ -27,9 +27,9 @@ class ModelConfig:
     llama_cpp_quantization: str = "Q5_K_M"
     # LoRA 路径
     llama_cpp_lora_path: Optional[str] = "./models/lora-gguf/urban_model-gguf.gguf"
-    llama_cpp_n_ctx: int = 32768  # 上下文长度
-    llama_cpp_n_threads: int = 6  # CPU 线程数
-    llama_cpp_n_batch: int = 512  # 批处理大小
+    llama_cpp_n_ctx: int = 16384  # 上下文长度（降低内存使用，提高响应速度）
+    llama_cpp_n_threads: int = 4  # CPU 线程数（留2核给系统）
+    llama_cpp_n_batch: int = 256  # 批处理大小（提高响应速度）
     llama_cpp_use_mmap: bool = True  # 使用内存映射
     llama_cpp_use_mlock: bool = False  # 使用内存锁定 (需要 root)
     llama_cpp_gpu_layers: int = 0  # GPU 层数 (0=全CPU, >0=部分GPU)
