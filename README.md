@@ -4,7 +4,9 @@
 
 ## ✨ 特性
 
+- **自动后端检测**: 根据硬件自动选择 GPU (vLLM) 或 CPU (llama.cpp) 推理
 - **双推理后端**: 支持 GPU (vLLM) 和 CPU (llama.cpp) 推理
+- **灵活模型配置**: 支持多种 Qwen 模型和量化格式选择
 - **高性能推理**: GPU 上使用 vLLM，CPU 上使用 llama.cpp
 - **LoRA 微调**: QLoRA 4-bit 量化训练，降低显存需求
 - **记忆功能**: 向量数据库存储，支持长期记忆和 RAG
@@ -26,7 +28,25 @@
 
 ## 🚀 快速开始
 
-### 方式一：GPU 训练 + GPU 推理
+### 方式一：自动检测 + 推理（推荐）
+
+```bash
+# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 准备训练数据
+python start.py prepare --sample
+
+# 3. 训练模型（可指定基础模型）
+python start.py train
+# 或使用特定模型
+python start.py train --base-model Qwen/Qwen2.5-3B-Instruct
+
+# 4. 启动 WebUI（自动检测 GPU/CPU）
+python start.py webui
+```
+
+### 方式二：GPU 训练 + GPU 推理
 
 ```bash
 # 1. 安装依赖
@@ -36,13 +56,13 @@ pip install -r requirements.txt
 python start.py prepare --sample
 
 # 3. 训练模型
-python start.py train
+python start.py train --base-model Qwen/Qwen2.5-7B-Instruct
 
-# 4. 启动 WebUI (使用 vLLM)
-python start.py webui
+# 4. 启动 WebUI (自动使用 vLLM)
+python start.py webui --lora ./checkpoints/final_model
 ```
 
-### 方式二：GPU 训练 + CPU 推理 ⭐ 推荐
+### 方式三：GPU 训练 + CPU 推理 ⭐ 推荐
 
 ```bash
 # GPU 机器上：
@@ -55,7 +75,7 @@ python start.py prepare --sample
 # 3. 训练模型
 python start.py train
 
-# 4. 转换模型为 GGUF 格式
+# 4. 转换模型为 GGUF 格式（可选，llama.cpp 支持直接加载 HF 模型）
 python start.py convert hf-to-gguf --model Qwen/Qwen2.5-7B-Instruct --quant Q5_K_M
 python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
 
@@ -67,13 +87,13 @@ python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
 # 1. 安装依赖 (不需要 torch/vllm)
 pip install llama-cpp-python gradio chromadb langchain sentence-transformers
 
-# 2. 修改 config.py
-# inference_backend: str = "llama_cpp"
-# llama_cpp_model_path: str = "./models/qwen2.5-7b-q5_k_m.gguf"
-# llama_cpp_lora_path: str = "./models/lora-gguf"
+# 2. 启动 WebUI（自动使用 llama.cpp）
+# 方式 A: 使用 GGUF 量化模型（推荐，内存占用小）
+python start.py webui --model-format gguf --lora ./models/lora-gguf
 
-# 3. 启动 WebUI (使用 llama.cpp)
-python start.py webui
+# 方式 B: 使用 Hugging Face 非量化模型（精度更高，内存占用大）
+python start.py webui --model-format hf --base-model Qwen/Qwen2.5-3B-Instruct
+
 ```
 
 ## 🎓 训练完整指南
@@ -486,10 +506,25 @@ gradient_checkpointing: bool = True
 python start.py webui [OPTIONS]
 
   OPTIONS:
-    --lora PATH     LoRA 权重路径
-    --host ADDR     服务器地址 (默认: 0.0.0.0)
-    --port PORT     端口 (默认: 7860)
-    --share         创建公共链接
+    --base-model MODEL    基础模型名称 (如: Qwen/Qwen2.5-7B-Instruct)
+    --model-format FORMAT CPU推理模型格式: gguf(量化) 或 hf(非量化)
+    --lora PATH           LoRA 权重路径
+    --host ADDR           服务器地址 (默认: 0.0.0.0)
+    --port PORT           端口 (默认: 7860)
+    --share               创建公共链接
+
+  示例:
+  # 自动检测 GPU/CPU
+  python start.py webui
+
+  # 指定基础模型
+  python start.py webui --base-model Qwen/Qwen2.5-3B-Instruct
+
+  # CPU 推理 - 使用 GGUF 量化模型
+  python start.py webui --model-format gguf
+
+  # CPU 推理 - 使用 HF 非量化模型
+  python start.py webui --model-format hf --base-model Qwen/Qwen2.5-3B-Instruct
 
 # 准备训练数据
 python start.py prepare [OPTIONS]
@@ -503,11 +538,12 @@ python start.py prepare [OPTIONS]
 python start.py train [OPTIONS]
 
   OPTIONS:
-    --data PATH     训练数据路径
-    --epochs N      训练轮数 (默认: 3)
-    --batch-size N  批次大小 (默认: 2)
-    --lr FLOAT      学习率 (默认: 2e-4)
-    --resume PATH   从 checkpoint 恢复
+    --base-model MODEL    基础模型名称
+    --data PATH           训练数据路径
+    --epochs N            训练轮数 (默认: 3)
+    --batch-size N        批次大小 (默认: 2)
+    --lr FLOAT            学习率 (默认: 2e-4)
+    --resume PATH         从 checkpoint 恢复
 
 # 推理测试
 python start.py inference
@@ -578,15 +614,19 @@ novel_ai_system/
 
 ```python
 # === 推理后端选择 ===
-model.inference_backend = "llama_cpp"  # "vllm" (GPU) 或 "llama_cpp" (CPU)
+model.inference_backend = "auto"  # "auto"(自动检测), "vllm"(GPU) 或 "llama_cpp"(CPU)
+
+# === llama.cpp 模型格式配置 ===
+model.llama_cpp_model_format = "gguf"  # "gguf"(量化) 或 "hf"(非量化)
+model.llama_cpp_gguf_model = "./models/qwen2.5-7b-q5_k_m.gguf"
+model.llama_cpp_hf_model = "Qwen/Qwen2.5-7B-Instruct"
+model.llama_cpp_lora_path = "./models/lora-gguf"
 
 # === vLLM 配置 (GPU 推理) ===
 model.vllm_max_model_len = 32768
 model.vllm_gpu_memory_utilization = 0.85
 
 # === llama.cpp 配置 (CPU 推理) ===
-model.llama_cpp_model_path = "./models/qwen2.5-7b-q5_k_m.gguf"
-model.llama_cpp_lora_path = "./models/lora-gguf"
 model.llama_cpp_n_ctx = 32768       # 上下文长度
 model.llama_cpp_n_threads = 6       # CPU 线程数
 
@@ -603,6 +643,21 @@ training.learning_rate = 2e-4
 # === 记忆配置 ===
 memory.embedding_model = "BAAI/bge-m3"
 memory.max_memory_items = 1000
+```
+
+### 命令行参数覆盖
+
+除了修改 `config.py`，也可以通过命令行参数覆盖配置：
+
+```bash
+# 指定基础模型
+python start.py train --base-model Qwen/Qwen2.5-3B-Instruct
+
+# CPU 推理选择模型格式
+python start.py webui --model-format gguf  # 或 --model-format hf
+
+# GPU 推理自动选择 vLLM
+python start.py webui
 ```
 
 ## 🔧 技术架构
@@ -669,10 +724,40 @@ memory.max_memory_items = 1000
 
 ## 📚 推荐基础模型
 
-- **Qwen2.5-7B-Instruct**: 平衡性能和资源占用
-- **Qwen2.5-14B-Instruct**: 更强性能，需要更多显存
+### Qwen2.5 系列 (推荐)
+
+| 模型 | 参数量 | 显存需求 | 特点 | 适用场景 |
+|------|--------|----------|------|----------|
+| `Qwen/Qwen2.5-0.5B-Instruct` | 0.5B | ~1GB | 最小，快速 | 测试/低配置 |
+| `Qwen/Qwen2.5-1.5B-Instruct` | 1.5B | ~3GB | 小型，轻量 | 边缘设备 |
+| `Qwen/Qwen2.5-3B-Instruct` | 3B | ~6GB | 中等，平衡 | **推荐入门** |
+| `Qwen/Qwen2.5-7B-Instruct` | 7B | ~14GB | 主流配置 | **标准推荐** |
+| `Qwen/Qwen2.5-14B-Instruct` | 14B | ~28GB | 高性能 | 专业使用 |
+| `Qwen/Qwen2.5-32B-Instruct` | 32B | ~64GB | 超大模型 | 研究级 |
+| `Qwen/Qwen2.5-72B-Instruct` | 72B | ~128GB | 旗舰级 | 顶级性能 |
+
+### Qwen2 系列
+
+| 模型 | 参数量 | 特点 |
+|------|--------|------|
+| `Qwen/Qwen2-7B-Instruct` | 7B | 稳定版本 |
+| `Qwen/Qwen2-72B-Instruct` | 72B | 强大性能 |
+
+### 使用方式
+
+```bash
+# 训练时指定模型
+python start.py train --base-model Qwen/Qwen2.5-3B-Instruct
+
+# 推理时指定模型
+python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct --lora ./checkpoints/final_model
+```
+
+### 其他推荐模型
+
 - **Yi-1.5-9B-Chat**: 优秀的中文对话模型
-- **DeepSeek-V3**: 最新的开源中文模型
+- **THUDM/glm-4-9b-chat**: 清华开源模型
+- **01-ai/Yi-1.5-9B-Chat**: 零一开源模型
 
 ## 🐛 常见问题
 
