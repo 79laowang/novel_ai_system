@@ -9,16 +9,24 @@ from typing import Optional, List
 @dataclass
 class ModelConfig:
     """模型配置"""
-    # 推理后端选择: "vllm" (GPU) 或 "llama_cpp" (CPU)
-    inference_backend: str = "llama_cpp"
+    # 推理后端选择: "auto" (自动检测), "vllm" (GPU) 或 "llama_cpp" (CPU)
+    inference_backend: str = "auto"
 
     # 基础模型选择 (推荐使用开源中文模型)
     base_model: str = "Qwen/Qwen2.5-7B-Instruct"  # Hugging Face 格式，用于训练
     # 备选: "THUDM/glm-4-9b-chat", "01-ai/Yi-1.5-9B-Chat"
 
     # llama.cpp 配置 (CPU 推理)
-    llama_cpp_model_path: str = "./models/qwen2.5-7b-q5_k_m.gguf"  # GGUF 模型路径 (从 HF 转换)
-    llama_cpp_lora_path: Optional[str] = "./models/lora-gguf/urban_model-gguf.gguf"  # GGUF LoRA 路径 (从训练结果转换)
+    # 模型格式: "gguf" (量化, 推荐) 或 "hf" (非量化, Hugging Face 格式)
+    llama_cpp_model_format: str = "gguf"
+    # GGUF 模型路径 (量化模型, 内存占用小)
+    llama_cpp_gguf_model: str = "./models/qwen2.5-7b-q5_k_m.gguf"
+    # Hugging Face 模型路径 (非量化模型, 精度更高但内存占用大)
+    llama_cpp_hf_model: str = "Qwen/Qwen2.5-7B-Instruct"
+    # 量化级别 (仅当 model_format="gguf" 时有效): Q4_K_M, Q5_K_M, Q8_0, F16 等
+    llama_cpp_quantization: str = "Q5_K_M"
+    # LoRA 路径
+    llama_cpp_lora_path: Optional[str] = "./models/lora-gguf/urban_model-gguf.gguf"
     llama_cpp_n_ctx: int = 32768  # 上下文长度
     llama_cpp_n_threads: int = 6  # CPU 线程数
     llama_cpp_n_batch: int = 512  # 批处理大小

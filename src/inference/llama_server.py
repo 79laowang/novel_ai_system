@@ -38,12 +38,32 @@ class LlamaCppNovelGenerator:
             rprint("[yellow]请运行: pip install llama-cpp-python[/yellow]")
             raise
 
-        # 检查模型文件
-        model_path = Path(self.config.model.llama_cpp_model_path)
-        if not model_path.exists():
-            rprint(f"[red]错误: 模型文件不存在: {model_path}[/red]")
-            rprint("[yellow]请先运行转换脚本将 Hugging Face 模型转换为 GGUF 格式[/yellow]")
-            raise FileNotFoundError(f"模型文件不存在: {model_path}")
+        # 根据配置选择模型格式
+        model_format = self.config.model.llama_cpp_model_format.lower()
+        model_path = None
+
+        if model_format == "gguf":
+            # 使用 GGUF 量化模型
+            model_path = Path(self.config.model.llama_cpp_gguf_model)
+            rprint(f"[cyan]模型格式: GGUF (量化)[/cyan]")
+            if not model_path.exists():
+                rprint(f"[red]错误: GGUF 模型文件不存在: {model_path}[/red]")
+                rprint("[yellow]请先运行转换脚本将 Hugging Face 模型转换为 GGUF 格式[/yellow]")
+                rprint(f"[yellow]命令: python start.py convert hf-to-gguf --model {self.config.model.base_model}[/yellow]")
+                raise FileNotFoundError(f"模型文件不存在: {model_path}")
+
+        elif model_format == "hf":
+            # 使用 Hugging Face 非量化模型
+            model_name = self.config.model.llama_cpp_hf_model
+            rprint(f"[cyan]模型格式: Hugging Face (非量化)[/cyan]")
+            rprint(f"[cyan]模型: {model_name}[/cyan]")
+            # llama.cpp 支持直接从 Hugging Face 加载模型
+            model_path = model_name
+
+        else:
+            rprint(f"[red]错误: 不支持的模型格式: {model_format}[/red]")
+            rprint("[yellow]支持的格式: 'gguf' (量化), 'hf' (非量化)[/yellow]")
+            raise ValueError(f"不支持的模型格式: {model_format}")
 
         # 设置 LoRA 路径
         self.lora_path = lora_path or self.config.model.llama_cpp_lora_path

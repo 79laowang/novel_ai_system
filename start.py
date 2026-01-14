@@ -22,12 +22,25 @@ def launch_webui(args):
     """启动WebUI"""
     import asyncio
     from src.webui.app import launch_webui
+    from config import config
 
     lora_path = args.lora if hasattr(args, 'lora') and args.lora else None
+
+    # 应用命令行指定的基础模型
+    if hasattr(args, 'base_model') and args.base_model:
+        config.model.base_model = args.base_model
+
+    # 应用 llama.cpp 模型格式配置
+    if hasattr(args, 'model_format') and args.model_format:
+        config.model.llama_cpp_model_format = args.model_format
+        # 同时更新 HF 模型路径以匹配
+        if args.model_format == "hf":
+            config.model.llama_cpp_hf_model = args.base_model or config.model.base_model
 
     print("=" * 60)
     print("🚀 启动中文小说写作AI系统 - WebUI")
     print("=" * 60)
+    print(f"📦 基础模型: {config.model.base_model}")
 
     asyncio.run(launch_webui(lora_path=lora_path))
 
@@ -35,10 +48,16 @@ def launch_webui(args):
 def launch_train(args):
     """启动训练"""
     from src.train.train_lora import main as train_main
+    from config import config
+
+    # 应用命令行指定的基础模型
+    if hasattr(args, 'base_model') and args.base_model:
+        config.model.base_model = args.base_model
 
     print("=" * 60)
     print("🎯 启动模型微调训练")
     print("=" * 60)
+    print(f"📦 基础模型: {config.model.base_model}")
 
     # 收集训练参数
     train_kwargs = {}
@@ -156,21 +175,39 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
-  # 启动WebUI
+  # 启动WebUI (默认模型)
   python start.py
 
-  # 启动WebUI (带LoRA权重)
-  python start.py webui --lora ./checkpoints/final_model
+  # 启动WebUI (指定Qwen基础模型)
+  python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct
+
+  # 其他Qwen模型选项:
+  # Qwen2.5系列: 0.5B, 1.5B, 3B, 7B, 14B, 32B, 72B
+  python start.py webui --base-model Qwen/Qwen2.5-3B-Instruct
+  python start.py webui --base-model Qwen/Qwen2.5-14B-Instruct
+  python start.py webui --base-model Qwen/Qwen2.5-32B-Instruct
+  python start.py webui --base-model Qwen/Qwen2.5-72B-Instruct
+
+  # Qwen2系列
+  python start.py webui --base-model Qwen/Qwen2-7B-Instruct
+  python start.py webui --base-model Qwen/Qwen2-72B-Instruct
+
+  # 启动WebUI (指定基础模型 + LoRA权重)
+  python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct --lora ./checkpoints/final_model
 
   # 准备训练数据
   python start.py prepare --sample
 
-  # 开始训练 (使用默认配置)
+  # 开始训练 (默认模型)
   python start.py train
+
+  # 开始训练 (指定基础模型)
+  python start.py train --base-model Qwen/Qwen2.5-7B-Instruct
 
   # 开始训练 (指定数据和输出目录)
   # 示例: 使用 urban-novels 数据集
   # python start.py train \\
+  #   --base-model Qwen/Qwen2.5-7B-Instruct \\
   #   --train-data ./data/train_urban-novels/train.jsonl \\
   #   --val-data ./data/val_urban-novels/val.jsonl \\
   #   --output-dir ./checkpoints/urban-novels_model \\
@@ -178,6 +215,26 @@ def main():
 
   # 推理测试
   python start.py inference
+
+Qwen模型系列 (推荐):
+  - Qwen/Qwen2.5-0.5B-Instruct   (最小, ~1GB显存)
+  - Qwen/Qwen2.5-1.5B-Instruct   (小型, ~3GB显存)
+  - Qwen/Qwen2.5-3B-Instruct    (中型, ~6GB显存)
+  - Qwen/Qwen2.5-7B-Instruct    (推荐, ~14GB显存)
+  - Qwen/Qwen2.5-14B-Instruct   (大型, ~28GB显存)
+  - Qwen/Qwen2.5-32B-Instruct   (超大型, ~64GB显存)
+  - Qwen/Qwen2.5-72B-Instruct   (最大, ~128GB显存)
+
+CPU 推理 (llama.cpp) 模型格式:
+  --model-format gguf  使用 GGUF 量化模型 (推荐, 内存占用小)
+  --model-format hf    使用 Hugging Face 非量化模型 (精度高, 内存占用大)
+
+  示例:
+  # CPU 推理 - 使用量化模型 (默认)
+  python start.py webui --model-format gguf
+
+  # CPU 推理 - 使用非量化模型 (精度更高)
+  python start.py webui --model-format hf --base-model Qwen/Qwen2.5-3B-Instruct
         """,
     )
 
@@ -185,6 +242,8 @@ def main():
 
     # WebUI模式
     webui_parser = subparsers.add_parser("webui", help="启动Web界面")
+    webui_parser.add_argument("--base-model", type=str, default=None, help="基础模型名称 (如: Qwen/Qwen2.5-7B-Instruct)")
+    webui_parser.add_argument("--model-format", type=str, default=None, choices=["gguf", "hf"], help="CPU推理模型格式: gguf(量化) 或 hf(非量化)")
     webui_parser.add_argument("--lora", type=str, default=None, help="LoRA权重路径")
     webui_parser.add_argument("--host", type=str, default=None, help="服务器地址")
     webui_parser.add_argument("--port", type=int, default=None, help="服务器端口")
@@ -192,6 +251,7 @@ def main():
 
     # 训练模式
     train_parser = subparsers.add_parser("train", help="启动模型训练")
+    train_parser.add_argument("--base-model", type=str, default=None, help="基础模型名称 (如: Qwen/Qwen2.5-7B-Instruct)")
     train_parser.add_argument("--data", type=str, default=None, help="训练数据路径")
     train_parser.add_argument("--train-data", type=str, default=None, help="训练数据路径 (JSONL)")
     train_parser.add_argument("--val-data", type=str, default=None, help="验证数据路径 (JSONL)")
