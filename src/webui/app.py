@@ -129,28 +129,38 @@ class NovelWebUI:
                 from datetime import datetime
                 import traceback
 
-                log_file = '/home/kewang/work/novel_ai_system/logs/debug.log'
-                with open(log_file, 'a') as f:
+                log_file = self.config.log_dir / 'debug.log'
+                with open(str(log_file), 'a') as f:
                     f.write(f"\n[{datetime.now()}] [生成请求] 输入: {input_text[:100]}...\n")
                     f.write(f"[参数] max_tokens={max_tok}, temp={temp}, top_p={top_p}, top_k={top_k}\n")
 
                 try:
-                    # 直接调用async方法
-                    result = await self.generator.generate_novel(
-                        user_input=input_text,
-                        max_tokens=max_tok,
-                        temperature=temp,
-                        top_p=top_p,
-                        top_k=top_k,
-                    )
+                    # 检查生成器是否有异步方法
+                    if hasattr(self.generator, 'generate_novel_async'):
+                        result = await self.generator.generate_novel_async(
+                            user_input=input_text,
+                            max_tokens=max_tok,
+                            temperature=temp,
+                            top_p=top_p,
+                            top_k=top_k,
+                        )
+                    else:
+                        # 同步方法，直接调用
+                        result = self.generator.generate_novel(
+                            user_input=input_text,
+                            max_tokens=max_tok,
+                            temperature=temp,
+                            top_p=top_p,
+                            top_k=top_k,
+                        )
 
-                    with open(log_file, 'a') as f:
+                    with open(str(log_file), 'a') as f:
                         f.write(f"[生成完成] 结果长度: {len(result)}\n")
 
                     return result, hist
                 except Exception as e:
                     error_msg = f"生成出错: {str(e)}\n{traceback.format_exc()}"
-                    with open(log_file, 'a') as f:
+                    with open(str(log_file), 'a') as f:
                         f.write(f"[错误] {error_msg}\n")
                     return error_msg, hist
 
@@ -493,7 +503,7 @@ class NovelWebUI:
             level=logging.DEBUG,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler('/home/kewang/work/novel_ai_system/logs/debug.log'),
+                logging.FileHandler(str(self.config.log_dir / 'debug.log')),
                 logging.StreamHandler()
             ]
         )
@@ -531,7 +541,7 @@ class NovelWebUI:
             return result
         except Exception as e:
             logger.error(f"[生成错误] {type(e).__name__}: {e}", exc_info=True)
-            return f"生成出错: {str(e)}\n\n请查看日志文件: /home/kewang/work/novel_ai_system/logs/debug.log", history
+            return f"生成出错: {str(e)}\n\n请查看日志文件: /home/kewang/workarea/github/novel_ai_system/logs/debug.log", history
 
     def add_memory_wrapper(
         self,
