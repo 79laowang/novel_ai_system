@@ -19,33 +19,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pip install -r requirements.txt
 ```
 
-### Model Download
-```bash
-# Download HuggingFace models using official hub + mirror
-python scripts/download_hf_model.py Qwen/Qwen2.5-7B-Instruct
-
-# Or use shell wrapper
-./scripts/download_model.sh Qwen/Qwen2.5-7B-Instruct
-
-# Download to specific directory
-python scripts/download_hf_model.py sentence-transformers/all-MiniLM-L6-v2 \
-    --local-dir ./models/embedding
-
-# Download project embedding model (BAAI/bge-m3)
-python scripts/download_hf_model.py --embedding
-
-# Use different mirror
-python scripts/download_hf_model.py Qwen/Qwen2.5-7B-Instruct \
-    --endpoint https://huggingface.co
-```
-
-**Features:**
-- No git-lfs required
-- No xethub dependency
-- Fully controllable
-- Resume download support
-- Enterprise CI friendly
-
 ### Data Preparation
 ```bash
 # Create sample data for testing
@@ -280,8 +253,6 @@ novel_ai_system/
 │   ├── install.sh         # Automated setup script
 │   ├── watch_logs.sh      # Log monitoring
 │   ├── package_model.sh   # Model packaging
-│   ├── download_hf_model.py   # HF model downloader
-│   ├── download_model.sh      # Shell wrapper for download
 │   ├── prepare_data_from_normal_txt.sh  # Data preparation
 │   ├── convert_hf_to_gguf.sh
 │   └── convert_lora_to_gguf.sh
