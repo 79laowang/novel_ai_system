@@ -52,7 +52,9 @@ llama.cpp/
 Thumbs.db
 
 # ChromaDB
-**/chroma_db/
+# Note: data/chroma_db/ is tracked in git for pre-built embeddings
+# Uncomment to ignore other chroma_db instances:
+# **/chroma_db/
 
 # Memory & Cache
 .cache/
