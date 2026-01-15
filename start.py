@@ -30,6 +30,16 @@ def launch_webui(args):
     if hasattr(args, 'base_model') and args.base_model:
         config.model.base_model = args.base_model
 
+    # 应用命令行指定的 GGUF 模型路径 (动态模型切换)
+    if hasattr(args, 'gguf_model') and args.gguf_model:
+        config.model.llama_cpp_gguf_model = args.gguf_model
+        print(f"🔄 使用 GGUF 模型: {args.gguf_model}")
+
+    # 应用命令行指定的 LoRA 路径 (动态 LoRA 切换)
+    if hasattr(args, 'lora_path') and args.lora_path:
+        config.model.llama_cpp_lora_path = args.lora_path
+        print(f"🔄 使用 LoRA: {args.lora_path}")
+
     # 应用 llama.cpp 模型格式配置
     if hasattr(args, 'model_format') and args.model_format:
         config.model.llama_cpp_model_format = args.model_format
@@ -175,8 +185,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
-  # 启动WebUI (默认模型)
+  # 启动WebUI (默认配置中的模型)
   python start.py
+
+  # 动态切换模型 (无需修改config.py)
+  # 使用1.5B模型
+  python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-1.5b-lora.pth
+
+  # 使用3B模型
+  python start.py webui --gguf-model ./models/qwen2.5-3b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-3b-lora.pth
+
+  # 使用7B模型
+  python start.py webui --gguf-model ./models/qwen2.5-7b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-7b-lora.pth
+
+  # 仅指定模型，不使用LoRA
+  python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf
 
   # 启动WebUI (指定Qwen基础模型)
   python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct
@@ -235,6 +258,21 @@ CPU 推理 (llama.cpp) 模型格式:
 
   # CPU 推理 - 使用非量化模型 (精度更高)
   python start.py webui --model-format hf --base-model Qwen/Qwen2.5-3B-Instruct
+
+动态模型切换 (推荐):
+  无需修改 config.py，直接通过命令行参数切换不同模型:
+
+  # 1.5B 模型 (最快，适合测试)
+  python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-1.5b-lora.pth
+
+  # 3B 模型 (平衡性能)
+  python start.py webui --gguf-model ./models/qwen2.5-3b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-3b-lora.pth
+
+  # 7B 模型 (最佳质量)
+  python start.py webui --gguf-model ./models/qwen2.5-7b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-7b-lora.pth
+
+  # 不使用LoRA (使用基础模型)
+  python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf
         """,
     )
 
@@ -243,8 +281,10 @@ CPU 推理 (llama.cpp) 模型格式:
     # WebUI模式
     webui_parser = subparsers.add_parser("webui", help="启动Web界面")
     webui_parser.add_argument("--base-model", type=str, default=None, help="基础模型名称 (如: Qwen/Qwen2.5-7B-Instruct)")
+    webui_parser.add_argument("--gguf-model", type=str, default=None, help="GGUF模型文件路径 (如: ./models/qwen2.5-3b-q5_k_m.gguf)")
+    webui_parser.add_argument("--lora-path", type=str, default=None, help="LoRA文件路径 (如: ./models/lora-gguf/urban-life-3b-lora.pth)")
     webui_parser.add_argument("--model-format", type=str, default=None, choices=["gguf", "hf"], help="CPU推理模型格式: gguf(量化) 或 hf(非量化)")
-    webui_parser.add_argument("--lora", type=str, default=None, help="LoRA权重路径")
+    webui_parser.add_argument("--lora", type=str, default=None, help="LoRA权重路径 (兼容旧参数)")
     webui_parser.add_argument("--host", type=str, default=None, help="服务器地址")
     webui_parser.add_argument("--port", type=int, default=None, help="服务器端口")
     webui_parser.add_argument("--share", action="store_true", help="创建公共链接")

@@ -16,9 +16,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from chromadb import Client, PersistentClient
 from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
 from rich.console import Console
 from rich import print as rprint
+
+# 不在模块级别导入 SentenceTransformer，而是在需要时动态导入
+# 这样可以在导入前设置 HF_ENDPOINT
 
 console = Console()
 
@@ -76,10 +78,72 @@ class NovelMemoryManager:
         )
 
         # 初始化embedding模型
-        self.embedding_model = SentenceTransformer(
-            self.config.memory.embedding_model,
-            device="cuda" if self._has_cuda() else "cpu",
-        )
+        if not self.config.memory.embedding_model:
+            rprint("[yellow]⚠ Embedding模型未配置，记忆功能将不可用[/yellow]")
+            self.embedding_model = None
+        else:
+            local_model_dir = None
+
+            # 第一次尝试：从本地 ./models/embeddings/ 加载
+            local_embeddings_dir = Path("./models/embeddings/")
+            if local_embeddings_dir.exists() and (local_embeddings_dir / "config.json").exists() and (local_embeddings_dir / "pytorch_model.bin").exists():
+                try:
+                    rprint("[cyan]加载Embedding模型（从本地 ./models/embeddings/）...[/cyan]")
+                    from sentence_transformers import SentenceTransformer as ST
+                    self.embedding_model = ST(str(local_embeddings_dir), device="cuda" if self._has_cuda() else "cpu")
+                    rprint(f"[green]✓ Embedding模型加载成功（本地）[/green]")
+                except Exception as e:
+                    rprint(f"[yellow]本地模型加载失败: {e}，尝试下载...[/yellow]")
+                    local_model_dir = None
+            else:
+                rprint("[yellow]本地模型不存在，尝试从远程下载...[/yellow]")
+                local_model_dir = Path.home() / ".cache" / "huggingface" / "models" / self.config.memory.embedding_model.replace("/", "--")
+
+                # 第二次尝试：中国镜像站
+                if not local_model_dir.exists():
+                    try:
+                        rprint("[cyan]下载Embedding模型 (中国镜像站: hf-mirror.com)...[/cyan]")
+
+                        # 下载模型到本地目录（显式指定endpoint）
+                        from huggingface_hub import snapshot_download
+                        snapshot_download(
+                            repo_id=self.config.memory.embedding_model,
+                            endpoint="https://hf-mirror.com",
+                            local_dir=str(local_model_dir),
+                            local_dir_use_symlinks=False,
+                            ignore_patterns=["*.DS_Store", "*.md"],
+                        )
+                        rprint(f"[green]✓ 模型下载完成[/green]")
+                    except Exception as e:
+                        rprint(f"[yellow]中国镜像站下载失败: {e}，尝试官方站点...[/yellow]")
+                        local_model_dir = Path.home() / ".cache" / "huggingface" / "models_official" / self.config.memory.embedding_model.replace("/", "--")
+
+                        # 第三次尝试：官方站点（不指定endpoint，使用默认）
+                        try:
+                            snapshot_download(
+                                repo_id=self.config.memory.embedding_model,
+                                local_dir=str(local_model_dir),
+                                local_dir_use_symlinks=False,
+                                ignore_patterns=["*.DS_Store", "*.md"],
+                            )
+                            rprint(f"[green]✓ 模型下载完成（官方站点）[/green]")
+                        except Exception as e2:
+                            rprint(f"[yellow]官方站点也下载失败: {e2}[/yellow]")
+                            local_model_dir = None
+
+                # 加载模型（从下载的本地路径）
+                if local_model_dir and local_model_dir.exists():
+                    try:
+                        rprint("[cyan]加载Embedding模型（从本地）...[/cyan]")
+                        from sentence_transformers import SentenceTransformer as ST
+                        self.embedding_model = ST(str(local_model_dir), device="cuda" if self._has_cuda() else "cpu")
+                        rprint(f"[green]✓ Embedding模型加载成功[/green]")
+                    except Exception as e:
+                        rprint(f"[yellow]本地模型加载失败: {e}[/yellow]")
+                        self.embedding_model = None
+                else:
+                    rprint("[yellow]⚠ 模型文件不存在，记忆功能将不可用[/yellow]")
+                    self.embedding_model = None
 
         # 初始化各个记忆类型的集合
         for memory_type in self.MEMORY_TYPES:
@@ -95,7 +159,10 @@ class NovelMemoryManager:
         # 加载长期记忆
         self._load_long_term_memory()
 
-        rprint(f"[green]✓ 记忆系统初始化完成，包含 {len(self.MEMORY_TYPES)} 种记忆类型[/green]")
+        if self.embedding_model:
+            rprint(f"[green]✓ 记忆系统初始化完成，包含 {len(self.MEMORY_TYPES)} 种记忆类型[/green]")
+        else:
+            rprint(f"[yellow]⚠ 记忆系统部分初始化完成（embedding模型不可用）[/yellow]")
 
     def _has_cuda(self) -> bool:
         """检查CUDA是否可用"""

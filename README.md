@@ -478,6 +478,47 @@ gradient_checkpointing: bool = True
 
 ## 📖 使用指南
 
+### 🔄 动态模型切换 (推荐功能)
+
+无需修改 `config.py`，直接通过命令行参数切换不同模型，方便快速测试和对比不同模型的效果。
+
+**优势**：
+- ✅ 无需编辑配置文件
+- ✅ 快速切换不同模型
+- ✅ 适合模型对比测试
+- ✅ 支持任意 GGUF 模型路径
+
+**使用方法**：
+
+```bash
+# 1.5B 模型 - 最快启动 (0.9秒)，适合快速测试
+python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-1.5b-lora.pth
+
+# 3B 模型 - 性能平衡 (1.4秒)，质量与速度的最佳平衡
+python start.py webui --gguf-model ./models/qwen2.5-3b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-3b-lora.pth
+
+# 7B 模型 - 最佳质量，推理时间稍长
+python start.py webui --gguf-model ./models/qwen2.5-7b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-7b-lora.pth
+
+# 使用基础模型，不加载 LoRA
+python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf
+
+# 结合其他参数使用
+python start.py webui \
+  --gguf-model ./models/qwen2.5-3b-q5_k_m.gguf \
+  --lora-path ./models/lora-gguf/urban-life-3b-lora.pth \
+  --host 0.0.0.0 \
+  --port 7860
+```
+
+**模型对比**：
+
+| 模型 | 文件大小 | 启动时间 | 内存占用 | 生成速度 | 适用场景 |
+|------|---------|---------|---------|---------|----------|
+| 1.5B | ~1.1GB | 0.9秒 | ~3GB | 最快 | 快速测试/开发 |
+| 3B | ~2.2GB | 1.4秒 | ~5GB | 快 | **推荐/日常使用** |
+| 7B | ~5.4GB | 2.5秒 | ~10GB | 中等 | 高质量生成 |
+
 ### WebUI 功能
 
 #### 📝 创作标签页
@@ -507,18 +548,33 @@ python start.py webui [OPTIONS]
 
   OPTIONS:
     --base-model MODEL    基础模型名称 (如: Qwen/Qwen2.5-7B-Instruct)
+    --gguf-model PATH     GGUF模型文件路径 (如: ./models/qwen2.5-3b-q5_k_m.gguf)
+    --lora-path PATH      LoRA文件路径 (如: ./models/lora-gguf/urban-life-3b-lora.pth)
     --model-format FORMAT CPU推理模型格式: gguf(量化) 或 hf(非量化)
-    --lora PATH           LoRA 权重路径
+    --lora PATH           LoRA 权重路径 (兼容旧参数)
     --host ADDR           服务器地址 (默认: 0.0.0.0)
     --port PORT           端口 (默认: 7860)
     --share               创建公共链接
 
   示例:
-  # 自动检测 GPU/CPU
+  # 自动检测 GPU/CPU (使用配置文件中的默认模型)
   python start.py webui
 
   # 指定基础模型
   python start.py webui --base-model Qwen/Qwen2.5-3B-Instruct
+
+  # 🔄 动态切换模型 (无需修改 config.py)
+  # 使用 1.5B 模型 (最快，适合测试)
+  python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-1.5b-lora.pth
+
+  # 使用 3B 模型 (平衡性能)
+  python start.py webui --gguf-model ./models/qwen2.5-3b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-3b-lora.pth
+
+  # 使用 7B 模型 (最佳质量)
+  python start.py webui --gguf-model ./models/qwen2.5-7b-q5_k_m.gguf --lora-path ./models/lora-gguf/urban-life-7b-lora.pth
+
+  # 不使用 LoRA (使用基础模型)
+  python start.py webui --gguf-model ./models/qwen2.5-1.5b-q5_k_m.gguf
 
   # CPU 推理 - 使用 GGUF 量化模型
   python start.py webui --model-format gguf
