@@ -60,8 +60,8 @@ class ModelConfig:
 class TrainingConfig:
     """训练配置"""
     # 数据
-    train_data_path: str = "data/train/train.jsonl"
-    val_data_path: str = "data/val/val.jsonl"
+    train_data_path: str = "training/data/train/train.jsonl"
+    val_data_path: str = "training/data/val/val.jsonl"
     max_seq_length: int = 2048
     preprocessing_num_workers: int = 1
 

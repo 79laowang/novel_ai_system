@@ -89,7 +89,7 @@ def prepare_data(args):
     print("📚 准备训练数据")
     print("=" * 60)
 
-    preparer = NovelDataPreparer(args.data_dir or "./data")
+    preparer = NovelDataPreparer(args.data_dir or "./training/data")
 
     if args.sample:
         preparer.create_sample_data()
@@ -264,7 +264,7 @@ CPU 推理 (llama.cpp) 模型格式:
 
     # 数据准备模式
     prepare_parser = subparsers.add_parser("prepare", help="准备训练数据")
-    prepare_parser.add_argument("--data-dir", type=str, default="./data", help="数据目录")
+    prepare_parser.add_argument("--data-dir", type=str, default="./training/data", help="数据目录")
     prepare_parser.add_argument("--chunk-size", type=int, default=2048, help="训练块大小")
     prepare_parser.add_argument("--val-split", type=float, default=0.1, help="验证集比例")
     prepare_parser.add_argument("--min-length", type=int, default=500, help="最小文本长度")

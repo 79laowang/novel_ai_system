@@ -124,8 +124,8 @@ python start.py webui --model-format hf --base-model Qwen/Qwen2.5-3B-Instruct
 
 ```bash
 # 方式一：TXT 文本文件（最简单）
-# 直接将小说文件放入 data/raw/ 目录
-cp my_novel.txt data/raw/
+# 直接将小说文件放入 training/data/raw/ 目录
+cp my_novel.txt training/data/raw/
 
 # 方式二：JSON 格式
 [
@@ -170,8 +170,8 @@ python start.py prepare --chunk-size 2048 --val-split 0.1
 @dataclass
 class TrainingConfig:
     # === 数据路径 ===
-    train_data_path: str = "data/train/train.jsonl"  # 训练数据
-    val_data_path: str = "data/val/val.jsonl"        # 验证数据
+    train_data_path: str = "training/data/train/train.jsonl"  # 训练数据
+    val_data_path: str = "training/data/val/val.jsonl"        # 验证数据
     max_seq_length: int = 2048                       # 最大序列长度
 
     # === 训练参数 ===
@@ -575,16 +575,16 @@ novel_ai_system/
 ├── requirements.txt       # 依赖列表
 ├── README.md             # 说明文档
 │
-├── data/                  # 数据目录
-│   ├── raw/              # 原始小说文件
-│   ├── train/            # 训练数据
-│   ├── val/              # 验证数据
-│   └── chroma_db/        # 向量数据库
+├── data/                  # 应用运行时数据
+│   └── chroma_db/        # 向量数据库 (记忆系统)
 │
-├── training/              # 训练目录 (重组后结构)
+├── training/              # 训练目录
+│   ├── data/             # 训练数据
+│   │   ├── raw/          # 原始小说文件
+│   │   ├── train/        # 训练集
+│   │   └── val/          # 验证集
 │   ├── checkpoints/      # 训练检查点
 │   │   ├── urban-life-1.5b-model/
-│   │   ├── urban-life-3b-model/
 │   │   ├── urban-life-7b-model/
 │   │   └── experiments/   # 实验性模型
 │   └── logs/             # 训练日志
@@ -960,7 +960,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
 ### TXT 格式
 ```
-直接放入 data/raw/ 目录即可
+直接放入 training/data/raw/ 目录即可
 ```
 
 ### JSON 格式

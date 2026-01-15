@@ -258,19 +258,19 @@ novel_ai_system/
 │   └── convert_lora_to_gguf.sh
 │
 ├── data/
-│   ├── raw/              # Original novel files
-│   ├── train/            # Training data (JSONL)
-│   ├── val/              # Validation data (JSONL)
-│   └── chroma_db/        # Vector database storage
+│   └── chroma_db/        # Vector database storage (runtime)
 │
 ├── training/             # Training directory (reorganized structure)
+│   ├── data/             # Training data
+│   │   ├── raw/          # Source novel files
+│   │   ├── train/        # Training datasets (JSONL)
+│   │   └── val/          # Validation datasets (JSONL)
 │   ├── checkpoints/      # Training checkpoints
 │   │   ├── urban-life-*/ # Model checkpoints
 │   │   └── experiments/  # Experimental models
 │   ├── logs/             # Training logs
 │   │   ├── tensorboard/
 │   │   └── runs/
-│   └── data/             # Training-specific data
 │
 ├── logs/                 # Debug logs
 │
