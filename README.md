@@ -96,6 +96,60 @@ python start.py webui --model-format hf --base-model Qwen/Qwen2.5-3B-Instruct
 
 ```
 
+## 📥 模型下载
+
+### 使用 HuggingFace 镜像下载 (推荐)
+
+使用官方 `huggingface_hub` + 国内镜像源，企业级稳定方案：
+
+```bash
+# 下载基础模型
+python scripts/download_hf_model.py Qwen/Qwen2.5-7B-Instruct
+
+# 或使用 shell 包装器
+./scripts/download_model.sh Qwen/Qwen2.5-7B-Instruct
+
+# 下载到指定目录
+python scripts/download_hf_model.py sentence-transformers/all-MiniLM-L6-v2 \
+    --local-dir ./models/embedding
+
+# 下载项目 embedding 模型
+python scripts/download_hf_model.py --embedding
+```
+
+**特点:**
+- ✅ 不走 git-lfs
+- ✅ 不走 xethub
+- ✅ 完全可控
+- ✅ 支持断点续传
+- ✅ 企业 CI 友好
+
+### 在代码中使用下载的模型
+
+```python
+from transformers import AutoModel, AutoTokenizer
+
+# 使用本地下载的模型
+model = AutoModel.from_pretrained("./models/Qwen--Qwen2.5-7B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("./models/Qwen--Qwen2.5-7B-Instruct")
+
+# 或直接使用 repo_id (会自动使用本地缓存)
+model = AutoModel.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+```
+
+### Embedding 模型
+
+```bash
+# 下载 BGE-M3 embedding 模型
+python scripts/download_hf_model.py BAAI/bge-m3 --local-dir ./models/embeddings
+```
+
+然后在 `config.py` 中更新路径：
+
+```python
+memory_config.embedding_model = "./models/embeddings"
+```
+
 ## 🎓 训练完整指南
 
 ### 训练流程概览
