@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Setup
 ```bash
 # Automated setup (creates venv, installs dependencies, creates directories)
-./install.sh
+./scripts/install.sh
 
 # Manual setup
 pip install -r requirements.txt
@@ -43,7 +43,7 @@ python start.py train --epochs 5 --batch-size 4 --lr 1e-4
 python start.py webui
 
 # With LoRA weights
-python start.py webui --lora ./checkpoints/final_model
+python start.py webui --lora ./training/final_model
 
 # Custom host/port/share
 python start.py webui --host 0.0.0.0 --port 7860 --share
@@ -55,7 +55,7 @@ python start.py webui --host 0.0.0.0 --port 7860 --share
 python start.py inference
 
 # Monitor debug logs
-./watch_logs.sh
+./scripts/watch_logs.sh
 # or
 tail -f logs/debug.log
 ```
@@ -66,7 +66,7 @@ tail -f logs/debug.log
 python start.py convert hf-to-gguf --model Qwen/Qwen2.5-7B-Instruct --quant Q5_K_M
 
 # Convert trained LoRA to GGUF format
-python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
+python start.py convert lora-to-gguf --lora-path ./training/final_model
 ```
 
 ## Architecture
@@ -181,7 +181,7 @@ inference_backend: str = "llama_cpp"  # "vllm" for GPU, "llama_cpp" for CPU
 │                ├─► LoRA 训练 (Transformers + PEFT)                  │
 │                │                                                    │
 │                ▼                                                    │
-│  输出: ./checkpoints/final_model/                                   │
+│  输出: ./training/final_model/                                   │
 │        ├── adapter_config.json                                      │
 │        └── adapter_model.safetensors  ← LoRA 权重                  │
 │                                                                       │
@@ -195,7 +195,7 @@ inference_backend: str = "llama_cpp"  # "vllm" for GPU, "llama_cpp" for CPU
 │     convert_hf_to_gguf.py → llama-quantize                          │
 │     │                                                               │
 │     ▼                                                               │
-│     ./models/qwen2.5-7b-q5_k_m.gguf                                 │
+│     ./models/gguf/qwen2.5-7b-q5_k_m.gguf                            │
 │                                                                       │
 │  2. LoRA 转换 (每次训练后)                                           │
 │     convert-lora-to-gguf.py                                         │
@@ -209,7 +209,7 @@ inference_backend: str = "llama_cpp"  # "vllm" for GPU, "llama_cpp" for CPU
 ┌─────────────────────────────────────────────────────────────────────┐
 │              CPU 机器 - 推理阶段                                      │
 │                                                                       │
-│  llama.cpp --model ./models/qwen2.5-7b-q5_k_m.gguf \                │
+│  llama.cpp --model ./models/gguf/qwen2.5-7b-q5_k_m.gguf \            │
 │            --lora ./models/lora-gguf                                 │
 │                                                                       │
 └─────────────────────────────────────────────────────────────────────┘
@@ -248,8 +248,14 @@ novel_ai_system/
 ├── config.py              # Central configuration (all settings here)
 ├── start.py               # CLI entry point
 ├── requirements.txt       # Python dependencies
-├── install.sh             # Automated setup script
-├── watch_logs.sh          # Log monitoring
+│
+├── scripts/               # Utility scripts
+│   ├── install.sh         # Automated setup script
+│   ├── watch_logs.sh      # Log monitoring
+│   ├── package_model.sh   # Model packaging
+│   ├── prepare_data_from_normal_txt.sh  # Data preparation
+│   ├── convert_hf_to_gguf.sh
+│   └── convert_lora_to_gguf.sh
 │
 ├── data/
 │   ├── raw/              # Original novel files
@@ -257,13 +263,31 @@ novel_ai_system/
 │   ├── val/              # Validation data (JSONL)
 │   └── chroma_db/        # Vector database storage
 │
-├── checkpoints/          # LoRA model checkpoints
-├── logs/                 # Debug and training logs
-├── models/               # Downloaded/converted models (GGUF)
+├── training/             # Training directory (reorganized structure)
+│   ├── checkpoints/      # Training checkpoints
+│   │   ├── urban-life-*/ # Model checkpoints
+│   │   └── experiments/  # Experimental models
+│   ├── logs/             # Training logs
+│   │   ├── tensorboard/
+│   │   └── runs/
+│   └── data/             # Training-specific data
+│
+├── logs/                 # Debug logs
+│
+├── models/               # Models (reorganized structure)
+│   ├── base/             # Base models (symlinks → HF cache)
+│   ├── gguf/             # GGUF quantized models (CPU inference)
+│   ├── lora-gguf/        # LoRA GGUF adapters
+│   └── production/       # Production-ready models
+│
+├── packages/             # Package outputs
+│   ├── releases/        # Official releases
+│   └── archives/        # Archived versions
 │
 ├── scripts/              # Conversion and utility scripts
 │   ├── convert_hf_to_gguf.sh
-│   └── convert_lora_to_gguf.sh
+│   ├── convert_lora_to_gguf.sh
+│   └── reorganize_models.sh
 │
 └── src/
     ├── train/            # LoRA training
@@ -305,4 +329,4 @@ Change `model.base_model` in `config.py` to switch models.
 - **JSONL**: One JSON object per line
 
 ### Testing
-Always test with `test_inference.py` or `python start.py inference` before validating via WebUI.
+Always test with `python src/inference/test_inference.py` or `python start.py inference` before validating via WebUI.

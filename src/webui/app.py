@@ -135,7 +135,8 @@ class NovelWebUI:
                 """流式生成小说（逐字显示，最后应用分段）"""
                 from datetime import datetime
                 import traceback
-                import re
+                import asyncio
+                import inspect
 
                 log_file = self.config.log_dir / 'debug.log'
                 with open(str(log_file), 'a') as f:
@@ -143,26 +144,44 @@ class NovelWebUI:
                     f.write(f"[参数] max_tokens={max_tok}, temp={temp}, top_p={top_p}, top_k={top_k}\n")
 
                 try:
+                    full_text = ""  # 初始化变量，避免 UnboundLocalError
                     # 检查生成器是否有流式方法
                     if hasattr(self.generator, 'generate_novel_stream'):
                         # 使用流式生成
-                        full_text = ""
-                        for chunk in self.generator.generate_novel_stream(
+                        stream_gen = self.generator.generate_novel_stream(
                             user_input=input_text,
                             max_tokens=max_tok,
                             temperature=temp,
                             top_p=top_p,
                             top_k=top_k,
-                        ):
-                            full_text += chunk
-                            # 实时流式输出原始文本
-                            yield full_text, hist
+                        )
+                        # 检查是否是异步生成器
+                        if inspect.isasyncgen(stream_gen):
+                            # 异步流式生成
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                async def collect_async():
+                                    text = ""
+                                    async for chunk in stream_gen:
+                                        text += chunk
+                                    return text
+                                full_text = loop.run_until_complete(collect_async())
+                            finally:
+                                loop.close()
+                        else:
+                            # 同步流式生成
+                            for chunk in stream_gen:
+                                full_text += chunk
+                                # 实时流式输出原始文本
+                                yield full_text, hist
 
                         # 生成完成后，应用分段后处理
                         formatted_text = self._post_process_text(full_text)
-                        yield formatted_text, hist
+                        full_text = formatted_text
+                        yield full_text, hist
                     else:
-                        # 回退到非流式（已包含分段处理）
+                        # 回退到非流式（vLLM 等）
                         result = self.generator.generate_novel(
                             user_input=input_text,
                             max_tokens=max_tok,
@@ -170,7 +189,20 @@ class NovelWebUI:
                             top_p=top_p,
                             top_k=top_k,
                         )
-                        yield result, hist
+                        # 检查是否是协程（异步方法）
+                        if inspect.iscoroutine(result):
+                            # 需要在事件循环中运行异步方法
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                full_text = loop.run_until_complete(result)
+                            finally:
+                                loop.close()
+                        else:
+                            full_text = result
+                        # 应用分段后处理
+                        full_text = self._post_process_text(full_text)
+                        yield full_text, hist
 
                     with open(str(log_file), 'a') as f:
                         f.write(f"[生成完成] 结果长度: {len(full_text)}\n")
@@ -355,7 +387,7 @@ class NovelWebUI:
                 )
                 lora_path = gr.Textbox(
                     label="LoRA 权重路径 (可选)",
-                    placeholder="./checkpoints/final_model",
+                    placeholder="./training/final_model",
                 )
                 reload_model_btn = gr.Button("🔄 重新加载模型", variant="primary")
 

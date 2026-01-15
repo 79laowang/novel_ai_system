@@ -19,14 +19,14 @@ class ModelConfig:
     # llama.cpp 配置 (CPU 推理)
     # 模型格式: "gguf" (量化, 推荐) 或 "hf" (非量化, Hugging Face 格式)
     llama_cpp_model_format: str = "gguf"
-    # GGUF 模型路径 (量化模型, 内存占用小)
-    llama_cpp_gguf_model: str = "./models/qwen2.5-7b-q5_k_m.gguf"
+    # GGUF 模型路径 (量化模型, 内存占用小) - 重组后的路径
+    llama_cpp_gguf_model: str = "./models/gguf/qwen2.5-7b-q5_k_m.gguf"
     # Hugging Face 模型路径 (非量化模型, 精度更高但内存占用大)
     llama_cpp_hf_model: str = "Qwen/Qwen2.5-7B-Instruct"
     # 量化级别 (仅当 model_format="gguf" 时有效): Q4_K_M, Q5_K_M, Q8_0, F16 等
     llama_cpp_quantization: str = "Q5_K_M"
-    # LoRA 路径
-    llama_cpp_lora_path: Optional[str] = "./models/lora-gguf/urban_model-gguf.gguf"
+    # LoRA 路径 - 重组后的路径
+    llama_cpp_lora_path: Optional[str] = "./models/lora-gguf/urban-life-3b-lora.pth"
     llama_cpp_n_ctx: int = 16384  # 上下文长度（降低内存使用，提高响应速度）
     llama_cpp_n_threads: int = 4  # CPU 线程数（留2核给系统）
     llama_cpp_n_batch: int = 256  # 批处理大小（提高响应速度）
@@ -82,8 +82,8 @@ class TrainingConfig:
     max_grad_norm: float = 1.0
 
     # 输出
-    output_dir: str = "./checkpoints"
-    checkpoint_dir: str = "./checkpoints"
+    output_dir: str = "./training"
+    checkpoint_dir: str = "./training"
 
     # 其他
     bf16: bool = True

@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 
 # 参数
 BASE_MODEL="${1:-Qwen/Qwen2.5-7B-Instruct}"
-LORA_PATH="${2:-./checkpoints/final_model}"
+LORA_PATH="${2:-./training/final_model}"
 OUTPUT_DIR="${3:-./models/lora-gguf}"
 LLAMA_CPP_DIR="./third_party/llama.cpp"
 

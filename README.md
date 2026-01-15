@@ -59,7 +59,7 @@ python start.py prepare --sample
 python start.py train --base-model Qwen/Qwen2.5-7B-Instruct
 
 # 4. 启动 WebUI (自动使用 vLLM)
-python start.py webui --lora ./checkpoints/final_model
+python start.py webui --lora ./training/final_model
 ```
 
 ### 方式三：GPU 训练 + CPU 推理 ⭐ 推荐
@@ -77,7 +77,7 @@ python start.py train
 
 # 4. 转换模型为 GGUF 格式（可选，llama.cpp 支持直接加载 HF 模型）
 python start.py convert hf-to-gguf --model Qwen/Qwen2.5-7B-Instruct --quant Q5_K_M
-python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
+python start.py convert lora-to-gguf --lora-path ./training/final_model
 
 # 5. 将模型文件复制到 CPU 机器
 # ./models/qwen2.5-7b-q5_k_m.gguf
@@ -280,10 +280,10 @@ tensorboard --logdir logs/tensorboard
 
 ```bash
 # 训练中断后，从最新的 checkpoint 恢复
-python start.py train --resume ./checkpoints/checkpoint-1000
+python start.py train --resume ./training/checkpoint-1000
 
 # 或指定具体 checkpoint
-python start.py train --resume ./checkpoints/checkpoint-5000
+python start.py train --resume ./training/checkpoint-5000
 ```
 
 ### 步骤 5: 监控训练状态
@@ -332,10 +332,10 @@ python start.py train --resume ./checkpoints/checkpoint-5000
 
 ```bash
 # 方式一：使用 final_model
-python start.py webui --lora ./checkpoints/final_model
+python start.py webui --lora ./training/final_model
 
 # 方式二：使用指定 checkpoint
-python start.py webui --lora ./checkpoints/checkpoint-5000
+python start.py webui --lora ./training/checkpoint-5000
 
 # 启动后访问 http://localhost:7860
 ```
@@ -350,10 +350,10 @@ python start.py webui --lora ./checkpoints/checkpoint-5000
 # 1. 转换 LoRA 为 GGUF 格式 (每次训练后)
 bash ./scripts/convert_lora_to_gguf.sh \
   ~/.cache/huggingface/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots/* \
-  ./checkpoints/<model_name>/final_model
+  ./training/<model_name>/final_model
 
 # 2. 打包模型 (自动包含基础模型 + LoRA)
-./package_model.sh <model_name>
+./scripts/package_model.sh <model_name>
 
 # 3. 传输到目标机器
 scp ./packages/<model_name>_cpu_*.tar.gz user@host:/path/
@@ -556,7 +556,7 @@ python start.py convert [SUBCOMMAND]
     lora-to-gguf    转换 LoRA 权重为 GGUF 格式
 
 # 模型打包 (部署到 CPU 机器)
-./package_model.sh [MODEL_NAME]
+./scripts/package_model.sh [MODEL_NAME]
 
   自动打包基础 GGUF 模型 + LoRA 适配器
   生成包含部署脚本的完整部署包
@@ -568,7 +568,10 @@ python start.py convert [SUBCOMMAND]
 novel_ai_system/
 ├── config.py              # 配置文件
 ├── start.py               # 主入口
-├── package_model.sh       # 模型打包脚本
+├── scripts/
+│   ├── package_model.sh              # 统一模型打包脚本
+│   ├── install.sh                    # 自动化安装脚本
+│   └── watch_logs.sh                 # 日志监控脚本
 ├── requirements.txt       # 依赖列表
 ├── README.md             # 说明文档
 │
@@ -578,20 +581,43 @@ novel_ai_system/
 │   ├── val/              # 验证数据
 │   └── chroma_db/        # 向量数据库
 │
-├── checkpoints/           # 训练检查点
+├── training/              # 训练目录 (重组后结构)
+│   ├── checkpoints/      # 训练检查点
+│   │   ├── urban-life-1.5b-model/
+│   │   ├── urban-life-3b-model/
+│   │   ├── urban-life-7b-model/
+│   │   └── experiments/   # 实验性模型
+│   └── logs/             # 训练日志
+│       ├── tensorboard/
+│       └── runs/
 │
-├── logs/                  # 日志文件
+├── logs/                  # 运行时日志
 │
-├── models/                # 模型文件 (GGUF)
-│   ├── *.gguf            # 基础模型
-│   └── lora-gguf/         # LoRA 适配器
+├── models/                # 模型文件 (重组后结构)
+│   ├── base/             # 基础模型 (符号链接 → HF 缓存)
+│   │   ├── Qwen2.5-1.5B-Instruct → ~/.cache/huggingface/...
+│   │   ├── Qwen2.5-3B-Instruct → ~/.cache/huggingface/...
+│   │   └── Qwen2.5-7B-Instruct → ~/.cache/huggingface/...
+│   ├── gguf/             # GGUF 量化模型 (CPU 推理)
+│   │   ├── qwen2.5-1.5b-q5_k_m.gguf
+│   │   ├── qwen2.5-3b-q5_k_m.gguf
+│   │   └── qwen2.5-7b-q5_k_m.gguf
+│   ├── lora-gguf/        # LoRA GGUF 适配器
+│   │   ├── urban-life-1.5b-lora.pth
+│   │   ├── urban-life-3b-lora.pth
+│   │   └── urban-life-7b-lora.pth
+│   └── production/       # 生产环境模型
+│       ├── gpu/          # GPU 推理模型
+│       └── cpu/          # CPU 推理模型
 │
 ├── packages/              # 打包输出目录
-│   └── *_deployment/     # 部署包
+│   ├── releases/         # 正式发布版本
+│   └── archives/         # 归档版本
 │
-├── scripts/               # 转换脚本
+├── scripts/               # 工具脚本
 │   ├── convert_hf_to_gguf.sh
-│   └── convert_lora_to_gguf.sh
+│   ├── convert_lora_to_gguf.sh
+│   └── reorganize_models.sh
 │
 └── src/
     ├── train/            # 训练模块
@@ -618,9 +644,9 @@ model.inference_backend = "auto"  # "auto"(自动检测), "vllm"(GPU) 或 "llama
 
 # === llama.cpp 模型格式配置 ===
 model.llama_cpp_model_format = "gguf"  # "gguf"(量化) 或 "hf"(非量化)
-model.llama_cpp_gguf_model = "./models/qwen2.5-7b-q5_k_m.gguf"
+model.llama_cpp_gguf_model = "./models/gguf/qwen2.5-7b-q5_k_m.gguf"  # 新路径
 model.llama_cpp_hf_model = "Qwen/Qwen2.5-7B-Instruct"
-model.llama_cpp_lora_path = "./models/lora-gguf"
+model.llama_cpp_lora_path = "./models/lora-gguf/urban-life-3b-lora.pth"  # 新路径
 
 # === vLLM 配置 (GPU 推理) ===
 model.vllm_max_model_len = 32768
@@ -750,7 +776,7 @@ python start.py webui
 python start.py train --base-model Qwen/Qwen2.5-3B-Instruct
 
 # 推理时指定模型
-python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct --lora ./checkpoints/final_model
+python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct --lora ./training/final_model
 ```
 
 ### 其他推荐模型
@@ -772,7 +798,7 @@ python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct --lora ./checkpoints
 python start.py convert hf-to-gguf --model Qwen/Qwen2.5-7B-Instruct --quant Q5_K_M
 
 # 转换 LoRA 权重 (每次训练后)
-python start.py convert lora-to-gguf --lora-path ./checkpoints/final_model
+python start.py convert lora-to-gguf --lora-path ./training/final_model
 ```
 
 ### llama.cpp CPU 推理性能

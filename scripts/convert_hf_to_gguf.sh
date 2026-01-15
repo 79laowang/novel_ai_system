@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 # 默认参数
 MODEL_NAME="${1:-Qwen/Qwen2.5-7B-Instruct}"
 QUANT_TYPE="${2:-Q5_K_M}"
-OUTPUT_DIR="./models"
+OUTPUT_DIR="./models/gguf"  # 重组后的路径
 LLAMA_CPP_DIR="./third_party/llama.cpp"
 
 echo -e "${CYAN}========================================${NC}"

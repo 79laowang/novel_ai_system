@@ -8,7 +8,7 @@ import asyncio
 from pathlib import Path
 
 # 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from vllm import AsyncLLMEngine, AsyncEngineArgs, SamplingParams
 from rich.console import Console
@@ -21,7 +21,8 @@ console = Console()
 async def test_direct_inference():
     """直接测试vLLM推理"""
 
-    log_file = '/home/kewang/work/novel_ai_system/logs/debug.log'
+    project_root = Path(__file__).parent.parent.parent
+    log_file = project_root / 'logs' / 'debug.log'
     with open(log_file, 'a') as f:
         f.write(f"\n{'='*60}\n")
         f.write(f"[{datetime.now()}] 开始直接推理测试\n")

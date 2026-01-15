@@ -1,10 +1,72 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
 venv/
+env/
+ENV/
+
+# Logs
 logs/
+*.log
+
+# Training Artifacts
+training/
 checkpoints/
+
+# Models & Data
 models/
 data/
+*.gguf
+*.pth
+*.safetensors
+*.bin
+
+# Packages
 packages/
+*.tar.gz
+*.zip
+
+# Third Party
 third_party/
+llama.cpp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ChromaDB
+**/chroma_db/
+
+# Memory & Cache
+.cache/
+*.jsonl
+long_term_memory.json
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Claude
+.claude/

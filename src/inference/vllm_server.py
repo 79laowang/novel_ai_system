@@ -418,7 +418,7 @@ async def main():
     from config import config
 
     generator = VLLMNovelGenerator(config)
-    await generator.initialize(lora_path="./checkpoints/final_model")
+    await generator.initialize(lora_path="./training/final_model")
 
     # 测试生成
     prompt = "请写一段武侠小说的开头，描述一位少年在雪山之巅练剑的场景。"

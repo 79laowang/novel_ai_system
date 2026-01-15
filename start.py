@@ -152,7 +152,7 @@ def convert_model(args):
         # LoRA → GGUF
         script = script_dir / "convert_lora_to_gguf.sh"
         base_model = args.base_model or "Qwen/Qwen2.5-7B-Instruct"
-        lora_path = args.lora_path or "./checkpoints/final_model"
+        lora_path = args.lora_path or "./training/final_model"
         output_dir = args.output_dir or "./models/lora-gguf"
 
         print(f"📦 基础模型: {base_model}")
@@ -193,7 +193,7 @@ def main():
   python start.py webui --base-model Qwen/Qwen2-72B-Instruct
 
   # 启动WebUI (指定基础模型 + LoRA权重)
-  python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct --lora ./checkpoints/final_model
+  python start.py webui --base-model Qwen/Qwen2.5-7B-Instruct --lora ./training/final_model
 
   # 准备训练数据
   python start.py prepare --sample
@@ -210,7 +210,7 @@ def main():
   #   --base-model Qwen/Qwen2.5-7B-Instruct \\
   #   --train-data ./data/train_urban-novels/train.jsonl \\
   #   --val-data ./data/val_urban-novels/val.jsonl \\
-  #   --output-dir ./checkpoints/urban-novels_model \\
+  #   --output-dir ./training/urban-novels_model \\
   #   --epochs 3
 
   # 推理测试
