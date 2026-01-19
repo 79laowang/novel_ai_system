@@ -2,6 +2,8 @@
 
 基于 **vLLM/llama.cpp + LoRA + ChromaDB** 的智能小说创作系统，支持训练、推理和记忆管理。
 
+**文档导航**: [📖 WebUI启动命令参考](COMMANDS.md) | [📋 完整文档](#-使用指南)
+
 ## ✨ 特性
 
 - **自动后端检测**: 根据硬件自动选择 GPU (vLLM) 或 CPU (llama.cpp) 推理
